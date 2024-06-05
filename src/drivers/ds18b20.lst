@@ -1,0 +1,517 @@
+   1               		.file	"ds18b20.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	_convert_t_cb
+  12               	_convert_t_cb:
+  13               	.LFB6:
+  14               		.file 1 "../drivers/ds18b20.c"
+   1:../drivers/ds18b20.c **** #include <avr/io.h>
+   2:../drivers/ds18b20.c **** #include <avr/interrupt.h>
+   3:../drivers/ds18b20.c **** #include <util/delay.h>
+   4:../drivers/ds18b20.c **** #include "config.h"
+   5:../drivers/ds18b20.c **** #include "onewire.h"
+   6:../drivers/ds18b20.c **** #include "ds18b20.h"
+   7:../drivers/ds18b20.c **** 
+   8:../drivers/ds18b20.c **** #define CMD_SKIP_ROM 0xCC
+   9:../drivers/ds18b20.c **** #define CMD_CONVERT_T 0x44
+  10:../drivers/ds18b20.c **** #define CMD_READ_SCRATCHPAD 0xBE
+  11:../drivers/ds18b20.c **** 
+  12:../drivers/ds18b20.c **** #define DS18B20_READY 0
+  13:../drivers/ds18b20.c **** #define DS18B20_BUSY 1
+  14:../drivers/ds18b20.c **** 
+  15:../drivers/ds18b20.c **** static uint8_t state=DS18B20_READY;
+  16:../drivers/ds18b20.c **** static ds18b20_cb ds18b20_callback;
+  17:../drivers/ds18b20.c **** static uint16_t temperature=0;
+  18:../drivers/ds18b20.c **** 
+  19:../drivers/ds18b20.c **** void _convert_t_cb(uint8_t data)
+  20:../drivers/ds18b20.c **** {
+  15               		.loc 1 20 0
+  16               		.cfi_startproc
+  17               	.LVL0:
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  21:../drivers/ds18b20.c **** #ifdef PARASITE_POWER
+  22:../drivers/ds18b20.c ****     ONEWIRE_PORT |= 1 << ONEWIRE_PIN;
+  22               		.loc 1 22 0
+  23 0000 5A9A      		sbi 0xb,2
+  23:../drivers/ds18b20.c ****     ONEWIRE_DDR |= 1 << ONEWIRE_PIN;
+  24               		.loc 1 23 0
+  25 0002 529A      		sbi 0xa,2
+  24:../drivers/ds18b20.c **** #endif
+  25:../drivers/ds18b20.c ****     state = DS18B20_READY;
+  26               		.loc 1 25 0
+  27 0004 1092 0000 		sts state,__zero_reg__
+  28 0008 0895      		ret
+  29               		.cfi_endproc
+  30               	.LFE6:
+  32               	.global	_read_temperature_2_cb
+  34               	_read_temperature_2_cb:
+  35               	.LFB11:
+  26:../drivers/ds18b20.c **** }
+  27:../drivers/ds18b20.c **** 
+  28:../drivers/ds18b20.c **** void _convert_skip_rom_cb(uint8_t data)
+  29:../drivers/ds18b20.c **** {
+  30:../drivers/ds18b20.c ****     onewire_master_write(CMD_CONVERT_T, _convert_t_cb);
+  31:../drivers/ds18b20.c **** }
+  32:../drivers/ds18b20.c **** 
+  33:../drivers/ds18b20.c **** void _pull_up2_cb(uint8_t data)
+  34:../drivers/ds18b20.c **** {
+  35:../drivers/ds18b20.c ****     if (data)
+  36:../drivers/ds18b20.c ****     {
+  37:../drivers/ds18b20.c ****         state = DS18B20_READY;
+  38:../drivers/ds18b20.c ****         return;
+  39:../drivers/ds18b20.c ****     }
+  40:../drivers/ds18b20.c ****     onewire_master_write(CMD_SKIP_ROM, _convert_skip_rom_cb);
+  41:../drivers/ds18b20.c **** }
+  42:../drivers/ds18b20.c **** 
+  43:../drivers/ds18b20.c **** void _pull_down2_cb(uint8_t data)
+  44:../drivers/ds18b20.c **** {
+  45:../drivers/ds18b20.c ****     onewire_master_pull_up(_pull_up2_cb);
+  46:../drivers/ds18b20.c **** }
+  47:../drivers/ds18b20.c **** 
+  48:../drivers/ds18b20.c **** uint8_t ds18b20_convert(void)
+  49:../drivers/ds18b20.c **** {
+  50:../drivers/ds18b20.c ****     if (state != DS18B20_READY)
+  51:../drivers/ds18b20.c ****     {
+  52:../drivers/ds18b20.c ****         return 1;
+  53:../drivers/ds18b20.c ****     }
+  54:../drivers/ds18b20.c ****     state = DS18B20_BUSY;
+  55:../drivers/ds18b20.c ****     onewire_master_pull_down(_pull_down2_cb);
+  56:../drivers/ds18b20.c ****     return 0;
+  57:../drivers/ds18b20.c **** }
+  58:../drivers/ds18b20.c **** 
+  59:../drivers/ds18b20.c **** void _read_temperature_2_cb(uint8_t data)
+  60:../drivers/ds18b20.c **** {
+  36               		.loc 1 60 0
+  37               		.cfi_startproc
+  38               	.LVL1:
+  39               	/* prologue: function */
+  40               	/* frame size = 0 */
+  41               	/* stack size = 0 */
+  42               	.L__stack_usage = 0
+  61:../drivers/ds18b20.c ****     temperature |= data << 8;
+  43               		.loc 1 61 0
+  44 000a 2091 0000 		lds r18,temperature
+  45 000e 3091 0000 		lds r19,temperature+1
+  46 0012 A901      		movw r20,r18
+  47 0014 582B      		or r21,r24
+  48 0016 CA01      		movw r24,r20
+  49               	.LVL2:
+  50 0018 5093 0000 		sts temperature+1,r21
+  51 001c 4093 0000 		sts temperature,r20
+  62:../drivers/ds18b20.c ****     if (ds18b20_callback)
+  52               		.loc 1 62 0
+  53 0020 E091 0000 		lds r30,ds18b20_callback
+  54 0024 F091 0000 		lds r31,ds18b20_callback+1
+  55 0028 3097      		sbiw r30,0
+  56 002a 01F0      		breq .L3
+  63:../drivers/ds18b20.c ****     {
+  64:../drivers/ds18b20.c ****         ds18b20_callback(temperature);
+  57               		.loc 1 64 0
+  58 002c 0995      		icall
+  59               	.LVL3:
+  60               	.L3:
+  65:../drivers/ds18b20.c ****     }
+  66:../drivers/ds18b20.c ****     state = DS18B20_READY;
+  61               		.loc 1 66 0
+  62 002e 1092 0000 		sts state,__zero_reg__
+  63 0032 0895      		ret
+  64               		.cfi_endproc
+  65               	.LFE11:
+  67               	.global	_convert_skip_rom_cb
+  69               	_convert_skip_rom_cb:
+  70               	.LFB7:
+  29:../drivers/ds18b20.c ****     onewire_master_write(CMD_CONVERT_T, _convert_t_cb);
+  71               		.loc 1 29 0
+  72               		.cfi_startproc
+  73               	.LVL4:
+  74               	/* prologue: function */
+  75               	/* frame size = 0 */
+  76               	/* stack size = 0 */
+  77               	.L__stack_usage = 0
+  30:../drivers/ds18b20.c **** }
+  78               		.loc 1 30 0
+  79 0034 60E0      		ldi r22,lo8(gs(_convert_t_cb))
+  80 0036 70E0      		ldi r23,hi8(gs(_convert_t_cb))
+  81 0038 84E4      		ldi r24,lo8(68)
+  82               	.LVL5:
+  83 003a 0C94 0000 		jmp onewire_master_write
+  84               	.LVL6:
+  85               		.cfi_endproc
+  86               	.LFE7:
+  88               	.global	_read_skip_rom_cb
+  90               	_read_skip_rom_cb:
+  91               	.LFB14:
+  67:../drivers/ds18b20.c **** }
+  68:../drivers/ds18b20.c **** 
+  69:../drivers/ds18b20.c **** void _read_temperature_1_cb(uint8_t data)
+  70:../drivers/ds18b20.c **** {
+  71:../drivers/ds18b20.c ****     temperature = data;
+  72:../drivers/ds18b20.c ****     onewire_master_read(_read_temperature_2_cb);
+  73:../drivers/ds18b20.c **** }
+  74:../drivers/ds18b20.c **** 
+  75:../drivers/ds18b20.c **** void _read_scratchpad_cb(uint8_t data)
+  76:../drivers/ds18b20.c **** {
+  77:../drivers/ds18b20.c ****     onewire_master_read(_read_temperature_1_cb);
+  78:../drivers/ds18b20.c **** }
+  79:../drivers/ds18b20.c **** 
+  80:../drivers/ds18b20.c **** void _read_skip_rom_cb(uint8_t data)
+  81:../drivers/ds18b20.c **** {
+  92               		.loc 1 81 0
+  93               		.cfi_startproc
+  94               	.LVL7:
+  95               	/* prologue: function */
+  96               	/* frame size = 0 */
+  97               	/* stack size = 0 */
+  98               	.L__stack_usage = 0
+  82:../drivers/ds18b20.c ****     onewire_master_write(CMD_READ_SCRATCHPAD, _read_scratchpad_cb);
+  99               		.loc 1 82 0
+ 100 003e 60E0      		ldi r22,lo8(gs(_read_scratchpad_cb))
+ 101 0040 70E0      		ldi r23,hi8(gs(_read_scratchpad_cb))
+ 102 0042 8EEB      		ldi r24,lo8(-66)
+ 103               	.LVL8:
+ 104 0044 0C94 0000 		jmp onewire_master_write
+ 105               	.LVL9:
+ 106               		.cfi_endproc
+ 107               	.LFE14:
+ 109               	.global	_pull_down2_cb
+ 111               	_pull_down2_cb:
+ 112               	.LFB9:
+  44:../drivers/ds18b20.c ****     onewire_master_pull_up(_pull_up2_cb);
+ 113               		.loc 1 44 0
+ 114               		.cfi_startproc
+ 115               	.LVL10:
+ 116               	/* prologue: function */
+ 117               	/* frame size = 0 */
+ 118               	/* stack size = 0 */
+ 119               	.L__stack_usage = 0
+  45:../drivers/ds18b20.c **** }
+ 120               		.loc 1 45 0
+ 121 0048 80E0      		ldi r24,lo8(gs(_pull_up2_cb))
+ 122 004a 90E0      		ldi r25,hi8(gs(_pull_up2_cb))
+ 123               	.LVL11:
+ 124 004c 0C94 0000 		jmp onewire_master_pull_up
+ 125               	.LVL12:
+ 126               		.cfi_endproc
+ 127               	.LFE9:
+ 129               	.global	_pull_down1_cb
+ 131               	_pull_down1_cb:
+ 132               	.LFB16:
+  83:../drivers/ds18b20.c **** }
+  84:../drivers/ds18b20.c **** 
+  85:../drivers/ds18b20.c **** void _pull_up1_cb(uint8_t data)
+  86:../drivers/ds18b20.c **** {
+  87:../drivers/ds18b20.c ****     if (data)
+  88:../drivers/ds18b20.c ****     {
+  89:../drivers/ds18b20.c ****         if (ds18b20_callback)
+  90:../drivers/ds18b20.c ****         {
+  91:../drivers/ds18b20.c ****             ds18b20_callback(DS18B20_INVALID_TEMPERATURE);
+  92:../drivers/ds18b20.c ****         }
+  93:../drivers/ds18b20.c ****         state = DS18B20_READY;
+  94:../drivers/ds18b20.c ****         return;
+  95:../drivers/ds18b20.c ****     }
+  96:../drivers/ds18b20.c ****     onewire_master_write(CMD_SKIP_ROM, _read_skip_rom_cb);
+  97:../drivers/ds18b20.c **** }
+  98:../drivers/ds18b20.c **** 
+  99:../drivers/ds18b20.c **** void _pull_down1_cb(uint8_t data)
+ 100:../drivers/ds18b20.c **** {
+ 133               		.loc 1 100 0
+ 134               		.cfi_startproc
+ 135               	.LVL13:
+ 136               	/* prologue: function */
+ 137               	/* frame size = 0 */
+ 138               	/* stack size = 0 */
+ 139               	.L__stack_usage = 0
+ 101:../drivers/ds18b20.c ****     onewire_master_pull_up(_pull_up1_cb);
+ 140               		.loc 1 101 0
+ 141 0050 80E0      		ldi r24,lo8(gs(_pull_up1_cb))
+ 142 0052 90E0      		ldi r25,hi8(gs(_pull_up1_cb))
+ 143               	.LVL14:
+ 144 0054 0C94 0000 		jmp onewire_master_pull_up
+ 145               	.LVL15:
+ 146               		.cfi_endproc
+ 147               	.LFE16:
+ 149               	.global	_read_temperature_1_cb
+ 151               	_read_temperature_1_cb:
+ 152               	.LFB12:
+  70:../drivers/ds18b20.c ****     temperature = data;
+ 153               		.loc 1 70 0
+ 154               		.cfi_startproc
+ 155               	.LVL16:
+ 156               	/* prologue: function */
+ 157               	/* frame size = 0 */
+ 158               	/* stack size = 0 */
+ 159               	.L__stack_usage = 0
+  71:../drivers/ds18b20.c ****     onewire_master_read(_read_temperature_2_cb);
+ 160               		.loc 1 71 0
+ 161 0058 90E0      		ldi r25,0
+ 162 005a 9093 0000 		sts temperature+1,r25
+ 163 005e 8093 0000 		sts temperature,r24
+  72:../drivers/ds18b20.c **** }
+ 164               		.loc 1 72 0
+ 165 0062 80E0      		ldi r24,lo8(gs(_read_temperature_2_cb))
+ 166 0064 90E0      		ldi r25,hi8(gs(_read_temperature_2_cb))
+ 167               	.LVL17:
+ 168 0066 0C94 0000 		jmp onewire_master_read
+ 169               	.LVL18:
+ 170               		.cfi_endproc
+ 171               	.LFE12:
+ 173               	.global	_read_scratchpad_cb
+ 175               	_read_scratchpad_cb:
+ 176               	.LFB13:
+  76:../drivers/ds18b20.c ****     onewire_master_read(_read_temperature_1_cb);
+ 177               		.loc 1 76 0
+ 178               		.cfi_startproc
+ 179               	.LVL19:
+ 180               	/* prologue: function */
+ 181               	/* frame size = 0 */
+ 182               	/* stack size = 0 */
+ 183               	.L__stack_usage = 0
+  77:../drivers/ds18b20.c **** }
+ 184               		.loc 1 77 0
+ 185 006a 80E0      		ldi r24,lo8(gs(_read_temperature_1_cb))
+ 186 006c 90E0      		ldi r25,hi8(gs(_read_temperature_1_cb))
+ 187               	.LVL20:
+ 188 006e 0C94 0000 		jmp onewire_master_read
+ 189               	.LVL21:
+ 190               		.cfi_endproc
+ 191               	.LFE13:
+ 193               	.global	_pull_up2_cb
+ 195               	_pull_up2_cb:
+ 196               	.LFB8:
+  34:../drivers/ds18b20.c ****     if (data)
+ 197               		.loc 1 34 0
+ 198               		.cfi_startproc
+ 199               	.LVL22:
+ 200               	/* prologue: function */
+ 201               	/* frame size = 0 */
+ 202               	/* stack size = 0 */
+ 203               	.L__stack_usage = 0
+  35:../drivers/ds18b20.c ****     {
+ 204               		.loc 1 35 0
+ 205 0072 8823      		tst r24
+ 206 0074 01F0      		breq .L15
+  37:../drivers/ds18b20.c ****         return;
+ 207               		.loc 1 37 0
+ 208 0076 1092 0000 		sts state,__zero_reg__
+  38:../drivers/ds18b20.c ****     }
+ 209               		.loc 1 38 0
+ 210 007a 0895      		ret
+ 211               	.L15:
+ 212               	.LVL23:
+ 213               	.LBB4:
+ 214               	.LBB5:
+  40:../drivers/ds18b20.c **** }
+ 215               		.loc 1 40 0
+ 216 007c 60E0      		ldi r22,lo8(gs(_convert_skip_rom_cb))
+ 217 007e 70E0      		ldi r23,hi8(gs(_convert_skip_rom_cb))
+ 218 0080 8CEC      		ldi r24,lo8(-52)
+ 219               	.LVL24:
+ 220 0082 0C94 0000 		jmp onewire_master_write
+ 221               	.LVL25:
+ 222               	.LBE5:
+ 223               	.LBE4:
+ 224               		.cfi_endproc
+ 225               	.LFE8:
+ 227               	.global	_pull_up1_cb
+ 229               	_pull_up1_cb:
+ 230               	.LFB15:
+  86:../drivers/ds18b20.c ****     if (data)
+ 231               		.loc 1 86 0
+ 232               		.cfi_startproc
+ 233               	.LVL26:
+ 234               	/* prologue: function */
+ 235               	/* frame size = 0 */
+ 236               	/* stack size = 0 */
+ 237               	.L__stack_usage = 0
+  87:../drivers/ds18b20.c ****     {
+ 238               		.loc 1 87 0
+ 239 0086 8823      		tst r24
+ 240 0088 01F0      		breq .L19
+  89:../drivers/ds18b20.c ****         {
+ 241               		.loc 1 89 0
+ 242 008a E091 0000 		lds r30,ds18b20_callback
+ 243 008e F091 0000 		lds r31,ds18b20_callback+1
+ 244 0092 3097      		sbiw r30,0
+ 245 0094 01F0      		breq .L20
+  91:../drivers/ds18b20.c ****         }
+ 246               		.loc 1 91 0
+ 247 0096 80E0      		ldi r24,0
+ 248 0098 90E8      		ldi r25,lo8(-128)
+ 249               	.LVL27:
+ 250 009a 0995      		icall
+ 251               	.LVL28:
+ 252               	.L20:
+  93:../drivers/ds18b20.c ****         return;
+ 253               		.loc 1 93 0
+ 254 009c 1092 0000 		sts state,__zero_reg__
+  94:../drivers/ds18b20.c ****     }
+ 255               		.loc 1 94 0
+ 256 00a0 0895      		ret
+ 257               	.LVL29:
+ 258               	.L19:
+ 259               	.LBB8:
+ 260               	.LBB9:
+  96:../drivers/ds18b20.c **** }
+ 261               		.loc 1 96 0
+ 262 00a2 60E0      		ldi r22,lo8(gs(_read_skip_rom_cb))
+ 263 00a4 70E0      		ldi r23,hi8(gs(_read_skip_rom_cb))
+ 264 00a6 8CEC      		ldi r24,lo8(-52)
+ 265               	.LVL30:
+ 266 00a8 0C94 0000 		jmp onewire_master_write
+ 267               	.LVL31:
+ 268               	.LBE9:
+ 269               	.LBE8:
+ 270               		.cfi_endproc
+ 271               	.LFE15:
+ 273               	.global	ds18b20_convert
+ 275               	ds18b20_convert:
+ 276               	.LFB10:
+  49:../drivers/ds18b20.c ****     if (state != DS18B20_READY)
+ 277               		.loc 1 49 0
+ 278               		.cfi_startproc
+ 279 00ac CF93      		push r28
+ 280               	.LCFI0:
+ 281               		.cfi_def_cfa_offset 3
+ 282               		.cfi_offset 28, -2
+ 283               	/* prologue: function */
+ 284               	/* frame size = 0 */
+ 285               	/* stack size = 1 */
+ 286               	.L__stack_usage = 1
+  50:../drivers/ds18b20.c ****     {
+ 287               		.loc 1 50 0
+ 288 00ae C091 0000 		lds r28,state
+ 289 00b2 C111      		cpse r28,__zero_reg__
+ 290 00b4 00C0      		rjmp .L28
+  54:../drivers/ds18b20.c ****     onewire_master_pull_down(_pull_down2_cb);
+ 291               		.loc 1 54 0
+ 292 00b6 81E0      		ldi r24,lo8(1)
+ 293 00b8 8093 0000 		sts state,r24
+  55:../drivers/ds18b20.c ****     return 0;
+ 294               		.loc 1 55 0
+ 295 00bc 80E0      		ldi r24,lo8(gs(_pull_down2_cb))
+ 296 00be 90E0      		ldi r25,hi8(gs(_pull_down2_cb))
+ 297 00c0 0E94 0000 		call onewire_master_pull_down
+ 298               	.LVL32:
+  56:../drivers/ds18b20.c **** }
+ 299               		.loc 1 56 0
+ 300 00c4 00C0      		rjmp .L27
+ 301               	.L28:
+  52:../drivers/ds18b20.c ****     }
+ 302               		.loc 1 52 0
+ 303 00c6 C1E0      		ldi r28,lo8(1)
+ 304               	.L27:
+  57:../drivers/ds18b20.c **** 
+ 305               		.loc 1 57 0
+ 306 00c8 8C2F      		mov r24,r28
+ 307               	/* epilogue start */
+ 308 00ca CF91      		pop r28
+ 309 00cc 0895      		ret
+ 310               		.cfi_endproc
+ 311               	.LFE10:
+ 313               	.global	ds18b20_read_temperature
+ 315               	ds18b20_read_temperature:
+ 316               	.LFB17:
+ 102:../drivers/ds18b20.c **** }
+ 103:../drivers/ds18b20.c **** 
+ 104:../drivers/ds18b20.c **** uint8_t ds18b20_read_temperature(ds18b20_cb callback)
+ 105:../drivers/ds18b20.c **** {
+ 317               		.loc 1 105 0
+ 318               		.cfi_startproc
+ 319               	.LVL33:
+ 320 00ce CF93      		push r28
+ 321               	.LCFI1:
+ 322               		.cfi_def_cfa_offset 3
+ 323               		.cfi_offset 28, -2
+ 324               	/* prologue: function */
+ 325               	/* frame size = 0 */
+ 326               	/* stack size = 1 */
+ 327               	.L__stack_usage = 1
+ 106:../drivers/ds18b20.c ****     if (state != DS18B20_READY)
+ 328               		.loc 1 106 0
+ 329 00d0 C091 0000 		lds r28,state
+ 330 00d4 C111      		cpse r28,__zero_reg__
+ 331 00d6 00C0      		rjmp .L31
+ 107:../drivers/ds18b20.c ****     {
+ 108:../drivers/ds18b20.c ****         return 1;
+ 109:../drivers/ds18b20.c ****     }
+ 110:../drivers/ds18b20.c ****     state = DS18B20_BUSY;
+ 332               		.loc 1 110 0
+ 333 00d8 21E0      		ldi r18,lo8(1)
+ 334 00da 2093 0000 		sts state,r18
+ 111:../drivers/ds18b20.c ****     ds18b20_callback = callback;
+ 335               		.loc 1 111 0
+ 336 00de 9093 0000 		sts ds18b20_callback+1,r25
+ 337 00e2 8093 0000 		sts ds18b20_callback,r24
+ 112:../drivers/ds18b20.c ****     onewire_master_pull_down(_pull_down1_cb);
+ 338               		.loc 1 112 0
+ 339 00e6 80E0      		ldi r24,lo8(gs(_pull_down1_cb))
+ 340 00e8 90E0      		ldi r25,hi8(gs(_pull_down1_cb))
+ 341               	.LVL34:
+ 342 00ea 0E94 0000 		call onewire_master_pull_down
+ 343               	.LVL35:
+ 113:../drivers/ds18b20.c ****     return 0;
+ 344               		.loc 1 113 0
+ 345 00ee 00C0      		rjmp .L30
+ 346               	.LVL36:
+ 347               	.L31:
+ 108:../drivers/ds18b20.c ****     }
+ 348               		.loc 1 108 0
+ 349 00f0 C1E0      		ldi r28,lo8(1)
+ 350               	.LVL37:
+ 351               	.L30:
+ 114:../drivers/ds18b20.c **** }
+ 352               		.loc 1 114 0
+ 353 00f2 8C2F      		mov r24,r28
+ 354               	/* epilogue start */
+ 355 00f4 CF91      		pop r28
+ 356 00f6 0895      		ret
+ 357               		.cfi_endproc
+ 358               	.LFE17:
+ 360               		.local	temperature
+ 361               		.comm	temperature,2,1
+ 362               		.local	ds18b20_callback
+ 363               		.comm	ds18b20_callback,2,1
+ 364               		.local	state
+ 365               		.comm	state,1,1
+ 366               	.Letext0:
+ 367               		.file 2 "/usr/lib/avr/include/stdint.h"
+ 368               		.file 3 "../drivers/ds18b20.h"
+ 369               		.file 4 "../drivers/onewire.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 ds18b20.c
+     /tmp/ccs54Qeb.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/ccs54Qeb.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/ccs54Qeb.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/ccs54Qeb.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/ccs54Qeb.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/ccs54Qeb.s:12     .text:0000000000000000 _convert_t_cb
+     /tmp/ccs54Qeb.s:363    .bss:0000000000000004 state
+     /tmp/ccs54Qeb.s:34     .text:000000000000000a _read_temperature_2_cb
+                             .bss:0000000000000000 temperature
+     /tmp/ccs54Qeb.s:361    .bss:0000000000000002 ds18b20_callback
+     /tmp/ccs54Qeb.s:69     .text:0000000000000034 _convert_skip_rom_cb
+     /tmp/ccs54Qeb.s:90     .text:000000000000003e _read_skip_rom_cb
+     /tmp/ccs54Qeb.s:175    .text:000000000000006a _read_scratchpad_cb
+     /tmp/ccs54Qeb.s:111    .text:0000000000000048 _pull_down2_cb
+     /tmp/ccs54Qeb.s:195    .text:0000000000000072 _pull_up2_cb
+     /tmp/ccs54Qeb.s:131    .text:0000000000000050 _pull_down1_cb
+     /tmp/ccs54Qeb.s:229    .text:0000000000000086 _pull_up1_cb
+     /tmp/ccs54Qeb.s:151    .text:0000000000000058 _read_temperature_1_cb
+     /tmp/ccs54Qeb.s:275    .text:00000000000000ac ds18b20_convert
+     /tmp/ccs54Qeb.s:315    .text:00000000000000ce ds18b20_read_temperature
+
+UNDEFINED SYMBOLS
+onewire_master_write
+onewire_master_pull_up
+onewire_master_read
+onewire_master_pull_down
+__do_clear_bss

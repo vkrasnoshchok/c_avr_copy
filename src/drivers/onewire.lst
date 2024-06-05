@@ -1,0 +1,546 @@
+   1               		.file	"onewire.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	onewire_init
+  12               	onewire_init:
+  13               	.LFB0:
+  14               		.file 1 "../drivers/onewire.c"
+   1:../drivers/onewire.c **** #include <avr/io.h>
+   2:../drivers/onewire.c **** #include <avr/interrupt.h>
+   3:../drivers/onewire.c **** #include "config.h"
+   4:../drivers/onewire.c **** #include "onewire.h"
+   5:../drivers/onewire.c **** 
+   6:../drivers/onewire.c **** #if !defined(ONEWIRE_PORT)
+   7:../drivers/onewire.c ****     #error ONEWIRE_PORT is not defined
+   8:../drivers/onewire.c **** #endif
+   9:../drivers/onewire.c **** 
+  10:../drivers/onewire.c **** #if !defined(ONEWIRE_DDR)
+  11:../drivers/onewire.c ****     #error ONEWIRE_DDR is not defined
+  12:../drivers/onewire.c **** #endif
+  13:../drivers/onewire.c **** 
+  14:../drivers/onewire.c **** #if !defined(ONEWIRE_PORT_IN)
+  15:../drivers/onewire.c ****     #error ONEWIRE_PORT_IN is not defined
+  16:../drivers/onewire.c **** #endif
+  17:../drivers/onewire.c **** 
+  18:../drivers/onewire.c **** #if !defined(ONEWIRE_PIN)
+  19:../drivers/onewire.c ****     #error ONEWIRE_PIN is not defined
+  20:../drivers/onewire.c **** #endif
+  21:../drivers/onewire.c **** 
+  22:../drivers/onewire.c **** #define HIGH_PULL_UP_PERIOD (85*(F_CPU/1000000UL)/8)
+  23:../drivers/onewire.c **** #define HIGH_PULL_DOWN_PERIOD (10*(F_CPU/1000000UL)/8)
+  24:../drivers/onewire.c **** #define LOW_PULL_UP_PERIOD (15*(F_CPU/1000000UL)/8)
+  25:../drivers/onewire.c **** #define LOW_PULL_DOWN_PERIOD (80*(F_CPU/1000000UL)/8)
+  26:../drivers/onewire.c **** #define READ_PERIOD (10*(F_CPU/1000000UL)/8)
+  27:../drivers/onewire.c **** 
+  28:../drivers/onewire.c **** #define RESET_WRITE_PERIOD (500*(F_CPU/1000000UL)/64)
+  29:../drivers/onewire.c **** #define RESET_READ_PERIOD (50*(F_CPU/1000000UL)/64)
+  30:../drivers/onewire.c **** 
+  31:../drivers/onewire.c **** static volatile uint8_t onewire_data;
+  32:../drivers/onewire.c **** static volatile uint8_t onewire_counter;
+  33:../drivers/onewire.c **** static onewire_cb onewire_callback;
+  34:../drivers/onewire.c **** 
+  35:../drivers/onewire.c **** void onewire_init(void)
+  36:../drivers/onewire.c **** {
+  15               		.loc 1 36 0
+  16               		.cfi_startproc
+  17               	/* prologue: function */
+  18               	/* frame size = 0 */
+  19               	/* stack size = 0 */
+  20               	.L__stack_usage = 0
+  37:../drivers/onewire.c ****     ONEWIRE_PORT &= ~(1 << ONEWIRE_PIN);
+  21               		.loc 1 37 0
+  22 0000 5A98      		cbi 0xb,2
+  38:../drivers/onewire.c ****     ONEWIRE_DDR &= ~(1 << ONEWIRE_PIN);
+  23               		.loc 1 38 0
+  24 0002 5298      		cbi 0xa,2
+  39:../drivers/onewire.c ****     TCCR0A = 1 << WGM01; // CTC mode
+  25               		.loc 1 39 0
+  26 0004 82E0      		ldi r24,lo8(2)
+  27 0006 84BD      		out 0x24,r24
+  40:../drivers/onewire.c ****     TCCR0B = 0;
+  28               		.loc 1 40 0
+  29 0008 15BC      		out 0x25,__zero_reg__
+  41:../drivers/onewire.c ****     TIMSK0 = 0;
+  30               		.loc 1 41 0
+  31 000a 1092 6E00 		sts 110,__zero_reg__
+  32 000e 0895      		ret
+  33               		.cfi_endproc
+  34               	.LFE0:
+  36               	.global	onewire_master_pull_down
+  38               	onewire_master_pull_down:
+  39               	.LFB1:
+  42:../drivers/onewire.c **** }
+  43:../drivers/onewire.c **** 
+  44:../drivers/onewire.c **** void onewire_master_pull_down(onewire_cb callback)
+  45:../drivers/onewire.c **** {
+  40               		.loc 1 45 0
+  41               		.cfi_startproc
+  42               	.LVL0:
+  43               	/* prologue: function */
+  44               	/* frame size = 0 */
+  45               	/* stack size = 0 */
+  46               	.L__stack_usage = 0
+  46:../drivers/onewire.c ****     ONEWIRE_DDR |= 1 << ONEWIRE_PIN;
+  47               		.loc 1 46 0
+  48 0010 529A      		sbi 0xa,2
+  47:../drivers/onewire.c ****     ONEWIRE_PORT &= ~(1 << ONEWIRE_PIN);
+  49               		.loc 1 47 0
+  50 0012 5A98      		cbi 0xb,2
+  48:../drivers/onewire.c ****     onewire_counter = 0;
+  51               		.loc 1 48 0
+  52 0014 1092 0000 		sts onewire_counter,__zero_reg__
+  49:../drivers/onewire.c ****     onewire_callback = callback;
+  53               		.loc 1 49 0
+  54 0018 9093 0000 		sts onewire_callback+1,r25
+  55 001c 8093 0000 		sts onewire_callback,r24
+  50:../drivers/onewire.c ****     TCNT0 = 0;
+  56               		.loc 1 50 0
+  57 0020 16BC      		out 0x26,__zero_reg__
+  51:../drivers/onewire.c ****     OCR0A = RESET_WRITE_PERIOD;
+  58               		.loc 1 51 0
+  59 0022 8DE7      		ldi r24,lo8(125)
+  60               	.LVL1:
+  61 0024 87BD      		out 0x27,r24
+  52:../drivers/onewire.c ****     TIMSK0 = (1 << OCIE0B) | (1 << OCIE0A);
+  62               		.loc 1 52 0
+  63 0026 86E0      		ldi r24,lo8(6)
+  64 0028 8093 6E00 		sts 110,r24
+  53:../drivers/onewire.c ****     TCCR0B = (1 << CS01) | (1 << CS00); // clk/64
+  65               		.loc 1 53 0
+  66 002c 83E0      		ldi r24,lo8(3)
+  67 002e 85BD      		out 0x25,r24
+  68 0030 0895      		ret
+  69               		.cfi_endproc
+  70               	.LFE1:
+  72               	.global	onewire_master_pull_up
+  74               	onewire_master_pull_up:
+  75               	.LFB2:
+  54:../drivers/onewire.c **** }
+  55:../drivers/onewire.c **** 
+  56:../drivers/onewire.c **** void onewire_master_pull_up(onewire_cb callback)
+  57:../drivers/onewire.c **** {
+  76               		.loc 1 57 0
+  77               		.cfi_startproc
+  78               	.LVL2:
+  79               	/* prologue: function */
+  80               	/* frame size = 0 */
+  81               	/* stack size = 0 */
+  82               	.L__stack_usage = 0
+  58:../drivers/onewire.c ****     ONEWIRE_DDR &= ~(1 << ONEWIRE_PIN);
+  83               		.loc 1 58 0
+  84 0032 5298      		cbi 0xa,2
+  59:../drivers/onewire.c ****     ONEWIRE_PORT &= ~(1 << ONEWIRE_PIN);
+  85               		.loc 1 59 0
+  86 0034 5A98      		cbi 0xb,2
+  60:../drivers/onewire.c ****     onewire_counter = 0;
+  87               		.loc 1 60 0
+  88 0036 1092 0000 		sts onewire_counter,__zero_reg__
+  61:../drivers/onewire.c ****     onewire_data = 0;
+  89               		.loc 1 61 0
+  90 003a 1092 0000 		sts onewire_data,__zero_reg__
+  62:../drivers/onewire.c ****     onewire_callback = callback;
+  91               		.loc 1 62 0
+  92 003e 9093 0000 		sts onewire_callback+1,r25
+  93 0042 8093 0000 		sts onewire_callback,r24
+  63:../drivers/onewire.c ****     TCNT0 = 0;
+  94               		.loc 1 63 0
+  95 0046 16BC      		out 0x26,__zero_reg__
+  64:../drivers/onewire.c ****     OCR0A = RESET_WRITE_PERIOD;
+  96               		.loc 1 64 0
+  97 0048 8DE7      		ldi r24,lo8(125)
+  98               	.LVL3:
+  99 004a 87BD      		out 0x27,r24
+  65:../drivers/onewire.c ****     OCR0B = RESET_READ_PERIOD;
+ 100               		.loc 1 65 0
+ 101 004c 8CE0      		ldi r24,lo8(12)
+ 102 004e 88BD      		out 0x28,r24
+  66:../drivers/onewire.c ****     TIMSK0 = (1 << OCIE0B) | (1 << OCIE0A);
+ 103               		.loc 1 66 0
+ 104 0050 86E0      		ldi r24,lo8(6)
+ 105 0052 8093 6E00 		sts 110,r24
+  67:../drivers/onewire.c ****     TCCR0B = (1 << CS01) | (1 << CS00); // clk/64
+ 106               		.loc 1 67 0
+ 107 0056 83E0      		ldi r24,lo8(3)
+ 108 0058 85BD      		out 0x25,r24
+ 109 005a 0895      		ret
+ 110               		.cfi_endproc
+ 111               	.LFE2:
+ 113               	.global	onewire_master_write
+ 115               	onewire_master_write:
+ 116               	.LFB3:
+  68:../drivers/onewire.c **** }
+  69:../drivers/onewire.c **** 
+  70:../drivers/onewire.c **** void onewire_master_write(uint8_t data, onewire_cb callback)
+  71:../drivers/onewire.c **** {
+ 117               		.loc 1 71 0
+ 118               		.cfi_startproc
+ 119               	.LVL4:
+ 120               	/* prologue: function */
+ 121               	/* frame size = 0 */
+ 122               	/* stack size = 0 */
+ 123               	.L__stack_usage = 0
+  72:../drivers/onewire.c ****     ONEWIRE_DDR &= ~(1 << ONEWIRE_PIN);
+ 124               		.loc 1 72 0
+ 125 005c 5298      		cbi 0xa,2
+  73:../drivers/onewire.c ****     ONEWIRE_PORT &= ~(1 << ONEWIRE_PIN);
+ 126               		.loc 1 73 0
+ 127 005e 5A98      		cbi 0xb,2
+  74:../drivers/onewire.c ****     onewire_counter = 8;
+ 128               		.loc 1 74 0
+ 129 0060 98E0      		ldi r25,lo8(8)
+ 130 0062 9093 0000 		sts onewire_counter,r25
+  75:../drivers/onewire.c ****     onewire_data = data;
+ 131               		.loc 1 75 0
+ 132 0066 8093 0000 		sts onewire_data,r24
+  76:../drivers/onewire.c ****     onewire_callback = callback;
+ 133               		.loc 1 76 0
+ 134 006a 7093 0000 		sts onewire_callback+1,r23
+ 135 006e 6093 0000 		sts onewire_callback,r22
+  77:../drivers/onewire.c ****     TCNT0 = 0;
+ 136               		.loc 1 77 0
+ 137 0072 16BC      		out 0x26,__zero_reg__
+  78:../drivers/onewire.c ****     OCR0A = HIGH_PULL_DOWN_PERIOD;
+ 138               		.loc 1 78 0
+ 139 0074 84E1      		ldi r24,lo8(20)
+ 140               	.LVL5:
+ 141 0076 87BD      		out 0x27,r24
+  79:../drivers/onewire.c ****     TIMSK0 = 1 << OCIE0A;
+ 142               		.loc 1 79 0
+ 143 0078 82E0      		ldi r24,lo8(2)
+ 144 007a 8093 6E00 		sts 110,r24
+  80:../drivers/onewire.c ****     TCCR0B = 1 << CS01; // clk/8
+ 145               		.loc 1 80 0
+ 146 007e 85BD      		out 0x25,r24
+ 147 0080 0895      		ret
+ 148               		.cfi_endproc
+ 149               	.LFE3:
+ 151               	.global	onewire_master_read
+ 153               	onewire_master_read:
+ 154               	.LFB4:
+  81:../drivers/onewire.c **** }
+  82:../drivers/onewire.c **** 
+  83:../drivers/onewire.c **** void onewire_master_read(onewire_cb callback)
+  84:../drivers/onewire.c **** {
+ 155               		.loc 1 84 0
+ 156               		.cfi_startproc
+ 157               	.LVL6:
+ 158               	/* prologue: function */
+ 159               	/* frame size = 0 */
+ 160               	/* stack size = 0 */
+ 161               	.L__stack_usage = 0
+  85:../drivers/onewire.c ****     ONEWIRE_DDR &= ~(1 << ONEWIRE_PIN);
+ 162               		.loc 1 85 0
+ 163 0082 5298      		cbi 0xa,2
+  86:../drivers/onewire.c ****     ONEWIRE_PORT &= ~(1 << ONEWIRE_PIN);
+ 164               		.loc 1 86 0
+ 165 0084 5A98      		cbi 0xb,2
+  87:../drivers/onewire.c ****     onewire_counter = 8;
+ 166               		.loc 1 87 0
+ 167 0086 28E0      		ldi r18,lo8(8)
+ 168 0088 2093 0000 		sts onewire_counter,r18
+  88:../drivers/onewire.c ****     onewire_data = 0xFF;
+ 169               		.loc 1 88 0
+ 170 008c 2FEF      		ldi r18,lo8(-1)
+ 171 008e 2093 0000 		sts onewire_data,r18
+  89:../drivers/onewire.c ****     onewire_callback = callback;
+ 172               		.loc 1 89 0
+ 173 0092 9093 0000 		sts onewire_callback+1,r25
+ 174 0096 8093 0000 		sts onewire_callback,r24
+  90:../drivers/onewire.c ****     TCNT0 = 0;
+ 175               		.loc 1 90 0
+ 176 009a 16BC      		out 0x26,__zero_reg__
+  91:../drivers/onewire.c ****     OCR0A = HIGH_PULL_DOWN_PERIOD;
+ 177               		.loc 1 91 0
+ 178 009c 84E1      		ldi r24,lo8(20)
+ 179               	.LVL7:
+ 180 009e 87BD      		out 0x27,r24
+  92:../drivers/onewire.c ****     OCR0B = READ_PERIOD;
+ 181               		.loc 1 92 0
+ 182 00a0 88BD      		out 0x28,r24
+  93:../drivers/onewire.c ****     TIMSK0 = (1 << OCIE0B) | (1 << OCIE0A);
+ 183               		.loc 1 93 0
+ 184 00a2 86E0      		ldi r24,lo8(6)
+ 185 00a4 8093 6E00 		sts 110,r24
+  94:../drivers/onewire.c ****     TCCR0B = 1 << CS01; // clk/8
+ 186               		.loc 1 94 0
+ 187 00a8 82E0      		ldi r24,lo8(2)
+ 188 00aa 85BD      		out 0x25,r24
+ 189 00ac 0895      		ret
+ 190               		.cfi_endproc
+ 191               	.LFE4:
+ 193               	.global	__vector_14
+ 195               	__vector_14:
+ 196               	.LFB5:
+  95:../drivers/onewire.c **** }
+  96:../drivers/onewire.c **** 
+  97:../drivers/onewire.c **** SIGNAL(TIMER0_COMPA_vect)
+  98:../drivers/onewire.c **** {
+ 197               		.loc 1 98 0
+ 198               		.cfi_startproc
+ 199 00ae 1F92      		push r1
+ 200               	.LCFI0:
+ 201               		.cfi_def_cfa_offset 3
+ 202               		.cfi_offset 1, -2
+ 203 00b0 0F92      		push r0
+ 204               	.LCFI1:
+ 205               		.cfi_def_cfa_offset 4
+ 206               		.cfi_offset 0, -3
+ 207 00b2 0FB6      		in r0,__SREG__
+ 208 00b4 0F92      		push r0
+ 209 00b6 1124      		clr __zero_reg__
+ 210 00b8 2F93      		push r18
+ 211               	.LCFI2:
+ 212               		.cfi_def_cfa_offset 5
+ 213               		.cfi_offset 18, -4
+ 214 00ba 3F93      		push r19
+ 215               	.LCFI3:
+ 216               		.cfi_def_cfa_offset 6
+ 217               		.cfi_offset 19, -5
+ 218 00bc 4F93      		push r20
+ 219               	.LCFI4:
+ 220               		.cfi_def_cfa_offset 7
+ 221               		.cfi_offset 20, -6
+ 222 00be 5F93      		push r21
+ 223               	.LCFI5:
+ 224               		.cfi_def_cfa_offset 8
+ 225               		.cfi_offset 21, -7
+ 226 00c0 6F93      		push r22
+ 227               	.LCFI6:
+ 228               		.cfi_def_cfa_offset 9
+ 229               		.cfi_offset 22, -8
+ 230 00c2 7F93      		push r23
+ 231               	.LCFI7:
+ 232               		.cfi_def_cfa_offset 10
+ 233               		.cfi_offset 23, -9
+ 234 00c4 8F93      		push r24
+ 235               	.LCFI8:
+ 236               		.cfi_def_cfa_offset 11
+ 237               		.cfi_offset 24, -10
+ 238 00c6 9F93      		push r25
+ 239               	.LCFI9:
+ 240               		.cfi_def_cfa_offset 12
+ 241               		.cfi_offset 25, -11
+ 242 00c8 AF93      		push r26
+ 243               	.LCFI10:
+ 244               		.cfi_def_cfa_offset 13
+ 245               		.cfi_offset 26, -12
+ 246 00ca BF93      		push r27
+ 247               	.LCFI11:
+ 248               		.cfi_def_cfa_offset 14
+ 249               		.cfi_offset 27, -13
+ 250 00cc EF93      		push r30
+ 251               	.LCFI12:
+ 252               		.cfi_def_cfa_offset 15
+ 253               		.cfi_offset 30, -14
+ 254 00ce FF93      		push r31
+ 255               	.LCFI13:
+ 256               		.cfi_def_cfa_offset 16
+ 257               		.cfi_offset 31, -15
+ 258               	/* prologue: Signal */
+ 259               	/* frame size = 0 */
+ 260               	/* stack size = 15 */
+ 261               	.L__stack_usage = 15
+  99:../drivers/onewire.c ****     if (onewire_counter == 0)
+ 262               		.loc 1 99 0
+ 263 00d0 8091 0000 		lds r24,onewire_counter
+ 264 00d4 8111      		cpse r24,__zero_reg__
+ 265 00d6 00C0      		rjmp .L7
+ 100:../drivers/onewire.c ****     {
+ 101:../drivers/onewire.c ****         TCCR0B = 0;
+ 266               		.loc 1 101 0
+ 267 00d8 15BC      		out 0x25,__zero_reg__
+ 102:../drivers/onewire.c ****         TIMSK0 = 0;
+ 268               		.loc 1 102 0
+ 269 00da 1092 6E00 		sts 110,__zero_reg__
+ 103:../drivers/onewire.c ****         if (onewire_callback)
+ 270               		.loc 1 103 0
+ 271 00de E091 0000 		lds r30,onewire_callback
+ 272 00e2 F091 0000 		lds r31,onewire_callback+1
+ 273 00e6 3097      		sbiw r30,0
+ 274 00e8 01F0      		breq .L6
+ 104:../drivers/onewire.c ****         {
+ 105:../drivers/onewire.c ****             onewire_callback(onewire_data);
+ 275               		.loc 1 105 0
+ 276 00ea 8091 0000 		lds r24,onewire_data
+ 277 00ee 0995      		icall
+ 278               	.LVL8:
+ 279 00f0 00C0      		rjmp .L6
+ 280               	.L7:
+ 106:../drivers/onewire.c ****         }
+ 107:../drivers/onewire.c ****         return;
+ 108:../drivers/onewire.c ****     }
+ 109:../drivers/onewire.c ****     if (ONEWIRE_DDR & (1 << ONEWIRE_PIN))
+ 281               		.loc 1 109 0
+ 282 00f2 529B      		sbis 0xa,2
+ 283 00f4 00C0      		rjmp .L9
+ 110:../drivers/onewire.c ****     {
+ 111:../drivers/onewire.c ****         ONEWIRE_DDR &= ~(1 << ONEWIRE_PIN);
+ 284               		.loc 1 111 0
+ 285 00f6 5298      		cbi 0xa,2
+ 112:../drivers/onewire.c ****         if (1 & onewire_data)
+ 286               		.loc 1 112 0
+ 287 00f8 8091 0000 		lds r24,onewire_data
+ 288 00fc 80FF      		sbrs r24,0
+ 289 00fe 00C0      		rjmp .L10
+ 113:../drivers/onewire.c ****         {
+ 114:../drivers/onewire.c ****             OCR0A = HIGH_PULL_UP_PERIOD;
+ 290               		.loc 1 114 0
+ 291 0100 8AEA      		ldi r24,lo8(-86)
+ 292 0102 00C0      		rjmp .L16
+ 293               	.L10:
+ 115:../drivers/onewire.c ****         }
+ 116:../drivers/onewire.c ****         else
+ 117:../drivers/onewire.c ****         {
+ 118:../drivers/onewire.c ****             OCR0A = LOW_PULL_UP_PERIOD;
+ 294               		.loc 1 118 0
+ 295 0104 8EE1      		ldi r24,lo8(30)
+ 296               	.L16:
+ 297 0106 87BD      		out 0x27,r24
+ 119:../drivers/onewire.c ****         }
+ 120:../drivers/onewire.c ****         onewire_counter--;
+ 298               		.loc 1 120 0
+ 299 0108 8091 0000 		lds r24,onewire_counter
+ 300 010c 8150      		subi r24,lo8(-(-1))
+ 301 010e 8093 0000 		sts onewire_counter,r24
+ 121:../drivers/onewire.c ****         onewire_data >>= 1;
+ 302               		.loc 1 121 0
+ 303 0112 8091 0000 		lds r24,onewire_data
+ 304 0116 8695      		lsr r24
+ 305 0118 8093 0000 		sts onewire_data,r24
+ 306 011c 00C0      		rjmp .L6
+ 307               	.L9:
+ 122:../drivers/onewire.c ****     }
+ 123:../drivers/onewire.c ****     else
+ 124:../drivers/onewire.c ****     {
+ 125:../drivers/onewire.c ****         ONEWIRE_DDR |= 1 << ONEWIRE_PIN;
+ 308               		.loc 1 125 0
+ 309 011e 529A      		sbi 0xa,2
+ 126:../drivers/onewire.c ****         if (1 & onewire_data)
+ 310               		.loc 1 126 0
+ 311 0120 8091 0000 		lds r24,onewire_data
+ 312 0124 80FF      		sbrs r24,0
+ 313 0126 00C0      		rjmp .L12
+ 127:../drivers/onewire.c ****         {
+ 128:../drivers/onewire.c ****             OCR0A = HIGH_PULL_DOWN_PERIOD;
+ 314               		.loc 1 128 0
+ 315 0128 84E1      		ldi r24,lo8(20)
+ 316 012a 00C0      		rjmp .L17
+ 317               	.L12:
+ 129:../drivers/onewire.c ****         }
+ 130:../drivers/onewire.c ****         else
+ 131:../drivers/onewire.c ****         {
+ 132:../drivers/onewire.c ****             OCR0A = LOW_PULL_DOWN_PERIOD;
+ 318               		.loc 1 132 0
+ 319 012c 80EA      		ldi r24,lo8(-96)
+ 320               	.L17:
+ 321 012e 87BD      		out 0x27,r24
+ 322               	.L6:
+ 323               	/* epilogue start */
+ 133:../drivers/onewire.c ****         }
+ 134:../drivers/onewire.c ****     }
+ 135:../drivers/onewire.c **** }
+ 324               		.loc 1 135 0
+ 325 0130 FF91      		pop r31
+ 326 0132 EF91      		pop r30
+ 327 0134 BF91      		pop r27
+ 328 0136 AF91      		pop r26
+ 329 0138 9F91      		pop r25
+ 330 013a 8F91      		pop r24
+ 331 013c 7F91      		pop r23
+ 332 013e 6F91      		pop r22
+ 333 0140 5F91      		pop r21
+ 334 0142 4F91      		pop r20
+ 335 0144 3F91      		pop r19
+ 336 0146 2F91      		pop r18
+ 337 0148 0F90      		pop r0
+ 338 014a 0FBE      		out __SREG__,r0
+ 339 014c 0F90      		pop r0
+ 340 014e 1F90      		pop r1
+ 341 0150 1895      		reti
+ 342               		.cfi_endproc
+ 343               	.LFE5:
+ 345               	.global	__vector_15
+ 347               	__vector_15:
+ 348               	.LFB6:
+ 136:../drivers/onewire.c **** 
+ 137:../drivers/onewire.c **** SIGNAL(TIMER0_COMPB_vect)
+ 138:../drivers/onewire.c **** {
+ 349               		.loc 1 138 0
+ 350               		.cfi_startproc
+ 351 0152 1F92      		push r1
+ 352               	.LCFI14:
+ 353               		.cfi_def_cfa_offset 3
+ 354               		.cfi_offset 1, -2
+ 355 0154 0F92      		push r0
+ 356               	.LCFI15:
+ 357               		.cfi_def_cfa_offset 4
+ 358               		.cfi_offset 0, -3
+ 359 0156 0FB6      		in r0,__SREG__
+ 360 0158 0F92      		push r0
+ 361 015a 1124      		clr __zero_reg__
+ 362 015c 8F93      		push r24
+ 363               	.LCFI16:
+ 364               		.cfi_def_cfa_offset 5
+ 365               		.cfi_offset 24, -4
+ 366               	/* prologue: Signal */
+ 367               	/* frame size = 0 */
+ 368               	/* stack size = 4 */
+ 369               	.L__stack_usage = 4
+ 139:../drivers/onewire.c ****     if (ONEWIRE_PORT_IN & (1 << ONEWIRE_PIN))
+ 370               		.loc 1 139 0
+ 371 015e 4A9B      		sbis 0x9,2
+ 372 0160 00C0      		rjmp .L19
+ 140:../drivers/onewire.c ****     {
+ 141:../drivers/onewire.c ****         onewire_data |= 0x80;
+ 373               		.loc 1 141 0
+ 374 0162 8091 0000 		lds r24,onewire_data
+ 375 0166 8068      		ori r24,lo8(-128)
+ 376 0168 8093 0000 		sts onewire_data,r24
+ 377               	.L19:
+ 378               	/* epilogue start */
+ 142:../drivers/onewire.c ****     }
+ 143:../drivers/onewire.c **** }
+ 379               		.loc 1 143 0
+ 380 016c 8F91      		pop r24
+ 381 016e 0F90      		pop r0
+ 382 0170 0FBE      		out __SREG__,r0
+ 383 0172 0F90      		pop r0
+ 384 0174 1F90      		pop r1
+ 385 0176 1895      		reti
+ 386               		.cfi_endproc
+ 387               	.LFE6:
+ 389               		.local	onewire_callback
+ 390               		.comm	onewire_callback,2,1
+ 391               		.local	onewire_counter
+ 392               		.comm	onewire_counter,1,1
+ 393               		.local	onewire_data
+ 394               		.comm	onewire_data,1,1
+ 395               	.Letext0:
+ 396               		.file 2 "/usr/lib/avr/include/stdint.h"
+ 397               		.file 3 "../drivers/onewire.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 onewire.c
+     /tmp/cc52DirP.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/cc52DirP.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/cc52DirP.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/cc52DirP.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/cc52DirP.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/cc52DirP.s:12     .text:0000000000000000 onewire_init
+     /tmp/cc52DirP.s:38     .text:0000000000000010 onewire_master_pull_down
+     /tmp/cc52DirP.s:390    .bss:0000000000000002 onewire_counter
+                             .bss:0000000000000000 onewire_callback
+     /tmp/cc52DirP.s:74     .text:0000000000000032 onewire_master_pull_up
+     /tmp/cc52DirP.s:392    .bss:0000000000000003 onewire_data
+     /tmp/cc52DirP.s:115    .text:000000000000005c onewire_master_write
+     /tmp/cc52DirP.s:153    .text:0000000000000082 onewire_master_read
+     /tmp/cc52DirP.s:195    .text:00000000000000ae __vector_14
+     /tmp/cc52DirP.s:347    .text:0000000000000152 __vector_15
+
+UNDEFINED SYMBOLS
+__do_clear_bss

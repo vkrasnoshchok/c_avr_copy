@@ -1,0 +1,407 @@
+   1               		.file	"max7219.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  11               	max7219_cs_cb:
+  12               	.LFB0:
+  13               		.file 1 "../drivers/max7219.c"
+   1:../drivers/max7219.c **** #include <avr/io.h>
+   2:../drivers/max7219.c **** #include <stdint.h>
+   3:../drivers/max7219.c **** #include "SPI.h"
+   4:../drivers/max7219.c **** #include "config.h"
+   5:../drivers/max7219.c **** #include "max7219.h"
+   6:../drivers/max7219.c **** 
+   7:../drivers/max7219.c **** #if !defined(MAX7219_NUMBER)
+   8:../drivers/max7219.c ****     #error MAX7219_NUMBER is not defined
+   9:../drivers/max7219.c **** #endif
+  10:../drivers/max7219.c **** 
+  11:../drivers/max7219.c **** #if !defined(MAX7219_CS_PORT)
+  12:../drivers/max7219.c ****     #error MAX7219_CS_PORT is not defined
+  13:../drivers/max7219.c **** #endif
+  14:../drivers/max7219.c **** 
+  15:../drivers/max7219.c **** #if !defined(MAX7219_CS_DDR)
+  16:../drivers/max7219.c ****     #error MAX7219_CS_DDR is not defined
+  17:../drivers/max7219.c **** #endif
+  18:../drivers/max7219.c **** 
+  19:../drivers/max7219.c **** #if !defined(MAX7219_CS_PIN)
+  20:../drivers/max7219.c ****     #error MAX7219_CS_PIN is not defined
+  21:../drivers/max7219.c **** #endif
+  22:../drivers/max7219.c **** 
+  23:../drivers/max7219.c **** #define MAX7219_REG_NOOP 0x00
+  24:../drivers/max7219.c **** #define MAX7219_REG_DIGIT0 0x01
+  25:../drivers/max7219.c **** #define MAX7219_REG_DIGIT1 0x02
+  26:../drivers/max7219.c **** #define MAX7219_REG_DIGIT2 0x03
+  27:../drivers/max7219.c **** #define MAX7219_REG_DIGIT3 0x04
+  28:../drivers/max7219.c **** #define MAX7219_REG_DIGIT4 0x05
+  29:../drivers/max7219.c **** #define MAX7219_REG_DIGIT5 0x06
+  30:../drivers/max7219.c **** #define MAX7219_REG_DIGIT6 0x07
+  31:../drivers/max7219.c **** #define MAX7219_REG_DIGIT7 0x08
+  32:../drivers/max7219.c **** #define MAX7219_REG_DECODE_MODE 0x09
+  33:../drivers/max7219.c **** #define MAX7219_REG_INTENSITY 0x0A
+  34:../drivers/max7219.c **** #define MAX7219_REG_SCAN_LIMIT 0x0B
+  35:../drivers/max7219.c **** #define MAX7219_REG_SHUTDOWN 0x0C
+  36:../drivers/max7219.c **** #define MAX7219_REG_DISPLAY_TEST 0x0F
+  37:../drivers/max7219.c **** 
+  38:../drivers/max7219.c **** #define MAX7219_REG_DECODE_MODE_VALUE 0x00  // using an led matrix (not digits)
+  39:../drivers/max7219.c **** #define MAX7219_REG_INTENSITY_VALUE 0x01    // the first 0x0f is the value you can set range: 0x00 
+  40:../drivers/max7219.c **** #define MAX7219_REG_SCAN_LIMIT_VALUE 0x07
+  41:../drivers/max7219.c **** #define MAX7219_REG_SHUTDOWN_VALUE 0x01     // not in shutdown mode
+  42:../drivers/max7219.c **** #define MAX7219_REG_DISPLAY_TEST_VALUE 0x00 // no display test
+  43:../drivers/max7219.c **** 
+  44:../drivers/max7219.c **** static uint8_t spi_buf[MAX7219_NUMBER*2];
+  45:../drivers/max7219.c **** static uint8_t max7219_row;
+  46:../drivers/max7219.c **** 
+  47:../drivers/max7219.c **** extern void max7219_load_row(uint8_t row, uint8_t *buf);
+  48:../drivers/max7219.c **** 
+  49:../drivers/max7219.c **** static void max7219_cs_cb(void)
+  50:../drivers/max7219.c **** {
+  14               		.loc 1 50 0
+  15               		.cfi_startproc
+  16               	/* prologue: function */
+  17               	/* frame size = 0 */
+  18               	/* stack size = 0 */
+  19               	.L__stack_usage = 0
+  51:../drivers/max7219.c ****     MAX7219_CS_PORT &= ~(1 << MAX7219_CS_PIN);
+  20               		.loc 1 51 0
+  21 0000 2A98      		cbi 0x5,2
+  52:../drivers/max7219.c ****     MAX7219_CS_PORT |= 1 << MAX7219_CS_PIN;
+  22               		.loc 1 52 0
+  23 0002 2A9A      		sbi 0x5,2
+  24 0004 0895      		ret
+  25               		.cfi_endproc
+  26               	.LFE0:
+  29               	max7219_send_all:
+  30               	.LFB1:
+  53:../drivers/max7219.c **** }
+  54:../drivers/max7219.c **** 
+  55:../drivers/max7219.c **** static void max7219_send_all(uint8_t reg, uint8_t data)
+  56:../drivers/max7219.c **** {
+  31               		.loc 1 56 0
+  32               		.cfi_startproc
+  33               	.LVL0:
+  34               	/* prologue: function */
+  35               	/* frame size = 0 */
+  36               	/* stack size = 0 */
+  37               	.L__stack_usage = 0
+  38 0006 E0E0      		ldi r30,lo8(spi_buf)
+  39 0008 F0E0      		ldi r31,hi8(spi_buf)
+  40               	.LVL1:
+  41               	.L3:
+  42               	.LBB2:
+  57:../drivers/max7219.c ****     uint8_t *buf=spi_buf;
+  58:../drivers/max7219.c ****     for (uint8_t i=0; i<MAX7219_NUMBER; i++)
+  59:../drivers/max7219.c ****     {
+  60:../drivers/max7219.c ****         *buf++ = reg;
+  43               		.loc 1 60 0 discriminator 3
+  44 000a 8083      		st Z,r24
+  45               	.LVL2:
+  61:../drivers/max7219.c ****         *buf++ = data;
+  46               		.loc 1 61 0 discriminator 3
+  47 000c 6183      		std Z+1,r22
+  48 000e 3296      		adiw r30,2
+  49               	.LVL3:
+  58:../drivers/max7219.c ****     {
+  50               		.loc 1 58 0 discriminator 3
+  51 0010 90E0      		ldi r25,hi8(spi_buf+24)
+  52 0012 E030      		cpi r30,lo8(spi_buf+24)
+  53 0014 F907      		cpc r31,r25
+  54 0016 01F4      		brne .L3
+  55               	.LBE2:
+  62:../drivers/max7219.c ****     }
+  63:../drivers/max7219.c ****     spi_master_send(spi_buf, MAX7219_NUMBER*2, max7219_cs_cb);
+  56               		.loc 1 63 0
+  57 0018 20E0      		ldi r18,lo8(gs(max7219_cs_cb))
+  58 001a 30E0      		ldi r19,hi8(gs(max7219_cs_cb))
+  59 001c 48E1      		ldi r20,lo8(24)
+  60 001e 60E0      		ldi r22,0
+  61 0020 70E0      		ldi r23,0
+  62               	.LVL4:
+  63 0022 80E0      		ldi r24,lo8(spi_buf)
+  64 0024 90E0      		ldi r25,hi8(spi_buf)
+  65               	.LVL5:
+  66 0026 0C94 0000 		jmp spi_master_transfer
+  67               	.LVL6:
+  68               		.cfi_endproc
+  69               	.LFE1:
+  71               	.global	max7219_init
+  73               	max7219_init:
+  74               	.LFB2:
+  64:../drivers/max7219.c **** }
+  65:../drivers/max7219.c **** 
+  66:../drivers/max7219.c **** void max7219_init(void)
+  67:../drivers/max7219.c **** {
+  75               		.loc 1 67 0
+  76               		.cfi_startproc
+  77               	/* prologue: function */
+  78               	/* frame size = 0 */
+  79               	/* stack size = 0 */
+  80               	.L__stack_usage = 0
+  68:../drivers/max7219.c ****     MAX7219_CS_DDR |= 1 << MAX7219_CS_PIN;
+  81               		.loc 1 68 0
+  82 002a 229A      		sbi 0x4,2
+  69:../drivers/max7219.c ****     max7219_send_all(MAX7219_REG_SCAN_LIMIT, MAX7219_REG_SCAN_LIMIT_VALUE);
+  83               		.loc 1 69 0
+  84 002c 67E0      		ldi r22,lo8(7)
+  85 002e 8BE0      		ldi r24,lo8(11)
+  86 0030 0E94 0000 		call max7219_send_all
+  87               	.LVL7:
+  88               	.L7:
+  70:../drivers/max7219.c ****     while (!spi_ready());
+  89               		.loc 1 70 0 discriminator 1
+  90 0034 0E94 0000 		call spi_ready
+  91               	.LVL8:
+  92 0038 8823      		tst r24
+  93 003a 01F0      		breq .L7
+  71:../drivers/max7219.c ****     max7219_send_all(MAX7219_REG_DECODE_MODE, MAX7219_REG_DECODE_MODE_VALUE);
+  94               		.loc 1 71 0
+  95 003c 60E0      		ldi r22,0
+  96 003e 89E0      		ldi r24,lo8(9)
+  97 0040 0E94 0000 		call max7219_send_all
+  98               	.LVL9:
+  99               	.L8:
+  72:../drivers/max7219.c ****     while (!spi_ready());
+ 100               		.loc 1 72 0 discriminator 1
+ 101 0044 0E94 0000 		call spi_ready
+ 102               	.LVL10:
+ 103 0048 8823      		tst r24
+ 104 004a 01F0      		breq .L8
+  73:../drivers/max7219.c ****     max7219_send_all(MAX7219_REG_SHUTDOWN, MAX7219_REG_SHUTDOWN_VALUE);
+ 105               		.loc 1 73 0
+ 106 004c 61E0      		ldi r22,lo8(1)
+ 107 004e 8CE0      		ldi r24,lo8(12)
+ 108 0050 0E94 0000 		call max7219_send_all
+ 109               	.LVL11:
+ 110               	.L9:
+  74:../drivers/max7219.c ****     while (!spi_ready());
+ 111               		.loc 1 74 0 discriminator 1
+ 112 0054 0E94 0000 		call spi_ready
+ 113               	.LVL12:
+ 114 0058 8823      		tst r24
+ 115 005a 01F0      		breq .L9
+  75:../drivers/max7219.c ****     max7219_send_all(MAX7219_REG_DISPLAY_TEST, MAX7219_REG_DISPLAY_TEST_VALUE);
+ 116               		.loc 1 75 0
+ 117 005c 60E0      		ldi r22,0
+ 118 005e 8FE0      		ldi r24,lo8(15)
+ 119 0060 0E94 0000 		call max7219_send_all
+ 120               	.LVL13:
+ 121               	.L10:
+  76:../drivers/max7219.c ****     while (!spi_ready());
+ 122               		.loc 1 76 0 discriminator 1
+ 123 0064 0E94 0000 		call spi_ready
+ 124               	.LVL14:
+ 125 0068 8823      		tst r24
+ 126 006a 01F0      		breq .L10
+  77:../drivers/max7219.c ****     max7219_send_all(MAX7219_REG_INTENSITY, 0x0f & MAX7219_REG_INTENSITY_VALUE);
+ 127               		.loc 1 77 0
+ 128 006c 61E0      		ldi r22,lo8(1)
+ 129 006e 8AE0      		ldi r24,lo8(10)
+ 130 0070 0E94 0000 		call max7219_send_all
+ 131               	.LVL15:
+ 132               	.L11:
+  78:../drivers/max7219.c ****     while (!spi_ready());
+ 133               		.loc 1 78 0 discriminator 1
+ 134 0074 0E94 0000 		call spi_ready
+ 135               	.LVL16:
+ 136 0078 8823      		tst r24
+ 137 007a 01F0      		breq .L11
+ 138               	/* epilogue start */
+  79:../drivers/max7219.c **** }
+ 139               		.loc 1 79 0
+ 140 007c 0895      		ret
+ 141               		.cfi_endproc
+ 142               	.LFE2:
+ 144               	.global	max7219_update
+ 146               	max7219_update:
+ 147               	.LFB3:
+  80:../drivers/max7219.c **** 
+  81:../drivers/max7219.c **** void max7219_update(void)
+  82:../drivers/max7219.c **** {
+ 148               		.loc 1 82 0
+ 149               		.cfi_startproc
+ 150               	/* prologue: function */
+ 151               	/* frame size = 0 */
+ 152               	/* stack size = 0 */
+ 153               	.L__stack_usage = 0
+  83:../drivers/max7219.c ****     max7219_row = MAX7219_ROWS;
+ 154               		.loc 1 83 0
+ 155 007e 88E0      		ldi r24,lo8(8)
+ 156 0080 8093 0000 		sts max7219_row,r24
+ 157 0084 0895      		ret
+ 158               		.cfi_endproc
+ 159               	.LFE3:
+ 161               	.global	max7219_update_with_config
+ 163               	max7219_update_with_config:
+ 164               	.LFB4:
+  84:../drivers/max7219.c **** }
+  85:../drivers/max7219.c **** 
+  86:../drivers/max7219.c **** void max7219_update_with_config(void)
+  87:../drivers/max7219.c **** {
+ 165               		.loc 1 87 0
+ 166               		.cfi_startproc
+ 167               	/* prologue: function */
+ 168               	/* frame size = 0 */
+ 169               	/* stack size = 0 */
+ 170               	.L__stack_usage = 0
+  88:../drivers/max7219.c ****     max7219_row = MAX7219_REG_DISPLAY_TEST + 1;
+ 171               		.loc 1 88 0
+ 172 0086 80E1      		ldi r24,lo8(16)
+ 173 0088 8093 0000 		sts max7219_row,r24
+ 174 008c 0895      		ret
+ 175               		.cfi_endproc
+ 176               	.LFE4:
+ 178               	.global	max7219_handler
+ 180               	max7219_handler:
+ 181               	.LFB5:
+  89:../drivers/max7219.c **** }
+  90:../drivers/max7219.c **** 
+  91:../drivers/max7219.c **** void max7219_handler(void)
+  92:../drivers/max7219.c **** {
+ 182               		.loc 1 92 0
+ 183               		.cfi_startproc
+ 184               	/* prologue: function */
+ 185               	/* frame size = 0 */
+ 186               	/* stack size = 0 */
+ 187               	.L__stack_usage = 0
+  93:../drivers/max7219.c ****     if (max7219_row == 0)
+ 188               		.loc 1 93 0
+ 189 008e 8091 0000 		lds r24,max7219_row
+ 190 0092 8823      		tst r24
+ 191 0094 01F0      		breq .L24
+  94:../drivers/max7219.c ****     {
+  95:../drivers/max7219.c ****         return;
+  96:../drivers/max7219.c ****     }
+  97:../drivers/max7219.c ****     if (!spi_ready())
+ 192               		.loc 1 97 0
+ 193 0096 0E94 0000 		call spi_ready
+ 194               	.LVL17:
+ 195 009a 8823      		tst r24
+ 196 009c 01F0      		breq .L24
+  98:../drivers/max7219.c ****     {
+  99:../drivers/max7219.c ****         return;
+ 100:../drivers/max7219.c ****     }
+ 101:../drivers/max7219.c ****     max7219_row--;
+ 197               		.loc 1 101 0
+ 198 009e 8091 0000 		lds r24,max7219_row
+ 199 00a2 8150      		subi r24,lo8(-(-1))
+ 200 00a4 8093 0000 		sts max7219_row,r24
+ 102:../drivers/max7219.c ****     if (max7219_row < MAX7219_ROWS)
+ 201               		.loc 1 102 0
+ 202 00a8 8830      		cpi r24,lo8(8)
+ 203 00aa 00F4      		brsh .L28
+ 103:../drivers/max7219.c ****     {
+ 104:../drivers/max7219.c ****         max7219_load_row(max7219_row, spi_buf);
+ 204               		.loc 1 104 0
+ 205 00ac 60E0      		ldi r22,lo8(spi_buf)
+ 206 00ae 70E0      		ldi r23,hi8(spi_buf)
+ 207 00b0 0E94 0000 		call max7219_load_row
+ 208               	.LVL18:
+ 105:../drivers/max7219.c ****         spi_master_send(spi_buf, MAX7219_NUMBER*2, max7219_cs_cb);
+ 209               		.loc 1 105 0
+ 210 00b4 20E0      		ldi r18,lo8(gs(max7219_cs_cb))
+ 211 00b6 30E0      		ldi r19,hi8(gs(max7219_cs_cb))
+ 212 00b8 48E1      		ldi r20,lo8(24)
+ 213 00ba 60E0      		ldi r22,0
+ 214 00bc 70E0      		ldi r23,0
+ 215 00be 80E0      		ldi r24,lo8(spi_buf)
+ 216 00c0 90E0      		ldi r25,hi8(spi_buf)
+ 217 00c2 0C94 0000 		jmp spi_master_transfer
+ 218               	.LVL19:
+ 219               	.L28:
+ 220               	.LBB3:
+ 106:../drivers/max7219.c ****     }
+ 107:../drivers/max7219.c ****     else
+ 108:../drivers/max7219.c ****     {
+ 109:../drivers/max7219.c ****         uint8_t data;
+ 110:../drivers/max7219.c ****         switch (max7219_row)
+ 221               		.loc 1 110 0
+ 222 00c6 8B30      		cpi r24,lo8(11)
+ 223 00c8 01F0      		breq .L34
+ 224 00ca 00F4      		brsh .L30
+ 225 00cc 8930      		cpi r24,lo8(9)
+ 226 00ce 01F0      		breq .L31
+ 227 00d0 8A30      		cpi r24,lo8(10)
+ 228 00d2 01F0      		breq .L32
+ 229 00d4 0895      		ret
+ 230               	.L30:
+ 231 00d6 8C30      		cpi r24,lo8(12)
+ 232 00d8 01F0      		breq .L32
+ 233 00da 8F30      		cpi r24,lo8(15)
+ 234 00dc 01F4      		brne .L24
+ 235               	.L31:
+ 111:../drivers/max7219.c ****         {
+ 112:../drivers/max7219.c ****             case MAX7219_REG_SCAN_LIMIT:
+ 113:../drivers/max7219.c ****                 data = MAX7219_REG_SCAN_LIMIT_VALUE;
+ 114:../drivers/max7219.c ****                 break;
+ 115:../drivers/max7219.c ****             case MAX7219_REG_DECODE_MODE:
+ 116:../drivers/max7219.c ****                 data = MAX7219_REG_DECODE_MODE_VALUE;
+ 236               		.loc 1 116 0
+ 237 00de 60E0      		ldi r22,0
+ 238 00e0 00C0      		rjmp .L29
+ 239               	.L32:
+ 240               	.LVL20:
+ 117:../drivers/max7219.c ****                 break;
+ 118:../drivers/max7219.c ****             case MAX7219_REG_SHUTDOWN:
+ 119:../drivers/max7219.c ****                 data = MAX7219_REG_SHUTDOWN_VALUE;
+ 120:../drivers/max7219.c ****                 break;
+ 121:../drivers/max7219.c ****             case MAX7219_REG_DISPLAY_TEST:
+ 122:../drivers/max7219.c ****                 data = MAX7219_REG_DISPLAY_TEST_VALUE;
+ 123:../drivers/max7219.c ****                 break;
+ 124:../drivers/max7219.c ****             case MAX7219_REG_INTENSITY:
+ 125:../drivers/max7219.c ****                 data = MAX7219_REG_INTENSITY_VALUE;
+ 241               		.loc 1 125 0
+ 242 00e2 61E0      		ldi r22,lo8(1)
+ 126:../drivers/max7219.c ****                 break;
+ 243               		.loc 1 126 0
+ 244 00e4 00C0      		rjmp .L29
+ 245               	.LVL21:
+ 246               	.L34:
+ 113:../drivers/max7219.c ****                 break;
+ 247               		.loc 1 113 0
+ 248 00e6 67E0      		ldi r22,lo8(7)
+ 249               	.L29:
+ 250               	.LVL22:
+ 127:../drivers/max7219.c ****             default:
+ 128:../drivers/max7219.c ****                 return;
+ 129:../drivers/max7219.c ****         }
+ 130:../drivers/max7219.c ****         max7219_send_all(max7219_row, data);
+ 251               		.loc 1 130 0
+ 252 00e8 0C94 0000 		jmp max7219_send_all
+ 253               	.LVL23:
+ 254               	.L24:
+ 255 00ec 0895      		ret
+ 256               	.LBE3:
+ 257               		.cfi_endproc
+ 258               	.LFE5:
+ 260               		.local	max7219_row
+ 261               		.comm	max7219_row,1,1
+ 262               		.local	spi_buf
+ 263               		.comm	spi_buf,24,1
+ 264               	.Letext0:
+ 265               		.file 2 "../drivers/SPI.h"
+ 266               		.file 3 "/usr/lib/avr/include/stdint.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 max7219.c
+     /tmp/cczd8UiV.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/cczd8UiV.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/cczd8UiV.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/cczd8UiV.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/cczd8UiV.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/cczd8UiV.s:11     .text:0000000000000000 max7219_cs_cb
+     /tmp/cczd8UiV.s:29     .text:0000000000000006 max7219_send_all
+     /tmp/cczd8UiV.s:261    .bss:0000000000000001 spi_buf
+     /tmp/cczd8UiV.s:73     .text:000000000000002a max7219_init
+     /tmp/cczd8UiV.s:146    .text:000000000000007e max7219_update
+                             .bss:0000000000000000 max7219_row
+     /tmp/cczd8UiV.s:163    .text:0000000000000086 max7219_update_with_config
+     /tmp/cczd8UiV.s:180    .text:000000000000008e max7219_handler
+
+UNDEFINED SYMBOLS
+spi_master_transfer
+spi_ready
+max7219_load_row
+__do_clear_bss

@@ -1,0 +1,394 @@
+   1               		.file	"timer.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	timer_init
+  12               	timer_init:
+  13               	.LFB0:
+  14               		.file 1 "../drivers/timer.c"
+   1:../drivers/timer.c **** #include <avr/io.h>
+   2:../drivers/timer.c **** #include <avr/interrupt.h>
+   3:../drivers/timer.c **** #include "config.h"
+   4:../drivers/timer.c **** #include "timer.h"
+   5:../drivers/timer.c **** 
+   6:../drivers/timer.c **** #if !defined(TIMER_NUMBER)
+   7:../drivers/timer.c ****     #error TIMER_NUMBER is not defined
+   8:../drivers/timer.c **** #endif
+   9:../drivers/timer.c **** 
+  10:../drivers/timer.c **** typedef struct {
+  11:../drivers/timer.c ****     uint8_t timeout;
+  12:../drivers/timer.c ****     uint8_t counter;
+  13:../drivers/timer.c ****     timer_cb callback;
+  14:../drivers/timer.c **** } timer_descriptor_t;
+  15:../drivers/timer.c **** 
+  16:../drivers/timer.c **** static timer_descriptor_t timer_descriptor[TIMER_NUMBER];
+  17:../drivers/timer.c **** static volatile uint8_t timer_flag=0;
+  18:../drivers/timer.c **** #ifdef USE_LOCALTIME
+  19:../drivers/timer.c **** static volatile uint32_t localtime_ds;
+  20:../drivers/timer.c **** #endif
+  21:../drivers/timer.c **** 
+  22:../drivers/timer.c **** void timer_init(void)
+  23:../drivers/timer.c **** {
+  15               		.loc 1 23 0
+  16               		.cfi_startproc
+  17               	/* prologue: function */
+  18               	/* frame size = 0 */
+  19               	/* stack size = 0 */
+  20               	.L__stack_usage = 0
+  21               	.LVL0:
+  22               	.LBB2:
+  24:../drivers/timer.c ****     for (uint8_t i=0; i<TIMER_NUMBER; i++)
+  25:../drivers/timer.c ****     {
+  26:../drivers/timer.c ****         timer_descriptor[i].timeout = 0;
+  23               		.loc 1 26 0
+  24 0000 E0E0      		ldi r30,lo8(timer_descriptor)
+  25 0002 F0E0      		ldi r31,hi8(timer_descriptor)
+  26 0004 1082      		st Z,__zero_reg__
+  27               	.LVL1:
+  28 0006 1482      		std Z+4,__zero_reg__
+  29               	.LVL2:
+  30 0008 1086      		std Z+8,__zero_reg__
+  31               	.LVL3:
+  32 000a 1486      		std Z+12,__zero_reg__
+  33               	.LVL4:
+  34 000c 108A      		std Z+16,__zero_reg__
+  35               	.LVL5:
+  36               	.LBE2:
+  27:../drivers/timer.c ****     }
+  28:../drivers/timer.c ****     // 10 Hz
+  29:../drivers/timer.c ****     OCR1A = 6249;
+  37               		.loc 1 29 0
+  38 000e 89E6      		ldi r24,lo8(105)
+  39 0010 98E1      		ldi r25,lo8(24)
+  40 0012 9093 8900 		sts 136+1,r25
+  41 0016 8093 8800 		sts 136,r24
+  30:../drivers/timer.c ****     TCCR1A = 0;
+  42               		.loc 1 30 0
+  43 001a 1092 8000 		sts 128,__zero_reg__
+  31:../drivers/timer.c ****     TCCR1B = (1 << WGM12) | (1 << CS12);
+  44               		.loc 1 31 0
+  45 001e 8CE0      		ldi r24,lo8(12)
+  46 0020 8093 8100 		sts 129,r24
+  32:../drivers/timer.c ****     TIMSK1 |= 1 << OCIE1A;
+  47               		.loc 1 32 0
+  48 0024 EFE6      		ldi r30,lo8(111)
+  49 0026 F0E0      		ldi r31,0
+  50 0028 8081      		ld r24,Z
+  51 002a 8260      		ori r24,lo8(2)
+  52 002c 8083      		st Z,r24
+  53 002e 0895      		ret
+  54               		.cfi_endproc
+  55               	.LFE0:
+  57               	.global	__vector_11
+  59               	__vector_11:
+  60               	.LFB1:
+  33:../drivers/timer.c **** }
+  34:../drivers/timer.c **** 
+  35:../drivers/timer.c **** SIGNAL(TIMER1_COMPA_vect)
+  36:../drivers/timer.c **** {
+  61               		.loc 1 36 0
+  62               		.cfi_startproc
+  63 0030 1F92      		push r1
+  64               	.LCFI0:
+  65               		.cfi_def_cfa_offset 3
+  66               		.cfi_offset 1, -2
+  67 0032 0F92      		push r0
+  68               	.LCFI1:
+  69               		.cfi_def_cfa_offset 4
+  70               		.cfi_offset 0, -3
+  71 0034 0FB6      		in r0,__SREG__
+  72 0036 0F92      		push r0
+  73 0038 1124      		clr __zero_reg__
+  74 003a 8F93      		push r24
+  75               	.LCFI2:
+  76               		.cfi_def_cfa_offset 5
+  77               		.cfi_offset 24, -4
+  78               	/* prologue: Signal */
+  79               	/* frame size = 0 */
+  80               	/* stack size = 4 */
+  81               	.L__stack_usage = 4
+  37:../drivers/timer.c ****     timer_flag = 1;
+  82               		.loc 1 37 0
+  83 003c 81E0      		ldi r24,lo8(1)
+  84 003e 8093 0000 		sts timer_flag,r24
+  85               	/* epilogue start */
+  38:../drivers/timer.c **** #ifdef USE_LOCALTIME
+  39:../drivers/timer.c ****     localtime_ds++;
+  40:../drivers/timer.c **** #endif
+  41:../drivers/timer.c **** }
+  86               		.loc 1 41 0
+  87 0042 8F91      		pop r24
+  88 0044 0F90      		pop r0
+  89 0046 0FBE      		out __SREG__,r0
+  90 0048 0F90      		pop r0
+  91 004a 1F90      		pop r1
+  92 004c 1895      		reti
+  93               		.cfi_endproc
+  94               	.LFE1:
+  96               	.global	timer_register
+  98               	timer_register:
+  99               	.LFB2:
+  42:../drivers/timer.c **** 
+  43:../drivers/timer.c **** uint8_t timer_register(uint8_t timer, uint8_t timeout, timer_cb callback)
+  44:../drivers/timer.c **** {
+ 100               		.loc 1 44 0
+ 101               		.cfi_startproc
+ 102               	.LVL6:
+ 103               	/* prologue: function */
+ 104               	/* frame size = 0 */
+ 105               	/* stack size = 0 */
+ 106               	.L__stack_usage = 0
+  45:../drivers/timer.c ****     if (timer >= TIMER_NUMBER || !callback)
+ 107               		.loc 1 45 0
+ 108 004e 8530      		cpi r24,lo8(5)
+ 109 0050 00F4      		brsh .L6
+ 110               		.loc 1 45 0 is_stmt 0 discriminator 1
+ 111 0052 4115      		cp r20,__zero_reg__
+ 112 0054 5105      		cpc r21,__zero_reg__
+ 113 0056 01F0      		breq .L6
+  46:../drivers/timer.c ****     {
+  47:../drivers/timer.c ****         return 1;
+  48:../drivers/timer.c ****     }
+  49:../drivers/timer.c ****     timer_descriptor[timer].counter = 0;
+ 114               		.loc 1 49 0 is_stmt 1
+ 115 0058 94E0      		ldi r25,lo8(4)
+ 116 005a 899F      		mul r24,r25
+ 117 005c F001      		movw r30,r0
+ 118 005e 1124      		clr __zero_reg__
+ 119 0060 E050      		subi r30,lo8(-(timer_descriptor))
+ 120 0062 F040      		sbci r31,hi8(-(timer_descriptor))
+ 121 0064 1182      		std Z+1,__zero_reg__
+  50:../drivers/timer.c ****     timer_descriptor[timer].callback = callback;
+ 122               		.loc 1 50 0
+ 123 0066 5383      		std Z+3,r21
+ 124 0068 4283      		std Z+2,r20
+  51:../drivers/timer.c ****     timer_descriptor[timer].timeout = timeout;
+ 125               		.loc 1 51 0
+ 126 006a 6083      		st Z,r22
+  52:../drivers/timer.c ****     return 0;
+ 127               		.loc 1 52 0
+ 128 006c 80E0      		ldi r24,0
+ 129               	.LVL7:
+ 130 006e 0895      		ret
+ 131               	.LVL8:
+ 132               	.L6:
+  47:../drivers/timer.c ****     }
+ 133               		.loc 1 47 0
+ 134 0070 81E0      		ldi r24,lo8(1)
+ 135               	.LVL9:
+  53:../drivers/timer.c **** }
+ 136               		.loc 1 53 0
+ 137 0072 0895      		ret
+ 138               		.cfi_endproc
+ 139               	.LFE2:
+ 141               	.global	timer_stop
+ 143               	timer_stop:
+ 144               	.LFB3:
+  54:../drivers/timer.c **** 
+  55:../drivers/timer.c **** uint8_t timer_stop(uint8_t timer)
+  56:../drivers/timer.c **** {
+ 145               		.loc 1 56 0
+ 146               		.cfi_startproc
+ 147               	.LVL10:
+ 148               	/* prologue: function */
+ 149               	/* frame size = 0 */
+ 150               	/* stack size = 0 */
+ 151               	.L__stack_usage = 0
+  57:../drivers/timer.c ****     if (timer >= TIMER_NUMBER)
+ 152               		.loc 1 57 0
+ 153 0074 8530      		cpi r24,lo8(5)
+ 154 0076 00F4      		brsh .L10
+  58:../drivers/timer.c ****     {
+  59:../drivers/timer.c ****         return 1;
+  60:../drivers/timer.c ****     }
+  61:../drivers/timer.c ****     timer_descriptor[timer].counter = 0;
+ 155               		.loc 1 61 0
+ 156 0078 94E0      		ldi r25,lo8(4)
+ 157 007a 899F      		mul r24,r25
+ 158 007c F001      		movw r30,r0
+ 159 007e 1124      		clr __zero_reg__
+ 160 0080 E050      		subi r30,lo8(-(timer_descriptor))
+ 161 0082 F040      		sbci r31,hi8(-(timer_descriptor))
+ 162 0084 1182      		std Z+1,__zero_reg__
+  62:../drivers/timer.c ****     timer_descriptor[timer].timeout = 0;
+ 163               		.loc 1 62 0
+ 164 0086 1082      		st Z,__zero_reg__
+  63:../drivers/timer.c ****     return 0;
+ 165               		.loc 1 63 0
+ 166 0088 80E0      		ldi r24,0
+ 167               	.LVL11:
+ 168 008a 0895      		ret
+ 169               	.LVL12:
+ 170               	.L10:
+  59:../drivers/timer.c ****     }
+ 171               		.loc 1 59 0
+ 172 008c 81E0      		ldi r24,lo8(1)
+ 173               	.LVL13:
+  64:../drivers/timer.c **** }
+ 174               		.loc 1 64 0
+ 175 008e 0895      		ret
+ 176               		.cfi_endproc
+ 177               	.LFE3:
+ 179               	.global	timer_start
+ 181               	timer_start:
+ 182               	.LFB4:
+  65:../drivers/timer.c **** 
+  66:../drivers/timer.c **** uint8_t timer_start(uint8_t timer, uint8_t timeout)
+  67:../drivers/timer.c **** {
+ 183               		.loc 1 67 0
+ 184               		.cfi_startproc
+ 185               	.LVL14:
+ 186               	/* prologue: function */
+ 187               	/* frame size = 0 */
+ 188               	/* stack size = 0 */
+ 189               	.L__stack_usage = 0
+  68:../drivers/timer.c ****     if (timer >= TIMER_NUMBER)
+ 190               		.loc 1 68 0
+ 191 0090 8530      		cpi r24,lo8(5)
+ 192 0092 00F4      		brsh .L13
+  69:../drivers/timer.c ****     {
+  70:../drivers/timer.c ****         return 1;
+  71:../drivers/timer.c ****     }
+  72:../drivers/timer.c ****     timer_descriptor[timer].counter = 0;
+ 193               		.loc 1 72 0
+ 194 0094 94E0      		ldi r25,lo8(4)
+ 195 0096 899F      		mul r24,r25
+ 196 0098 F001      		movw r30,r0
+ 197 009a 1124      		clr __zero_reg__
+ 198 009c E050      		subi r30,lo8(-(timer_descriptor))
+ 199 009e F040      		sbci r31,hi8(-(timer_descriptor))
+ 200 00a0 1182      		std Z+1,__zero_reg__
+  73:../drivers/timer.c ****     timer_descriptor[timer].timeout = timeout;
+ 201               		.loc 1 73 0
+ 202 00a2 6083      		st Z,r22
+  74:../drivers/timer.c ****     return 0;
+ 203               		.loc 1 74 0
+ 204 00a4 80E0      		ldi r24,0
+ 205               	.LVL15:
+ 206 00a6 0895      		ret
+ 207               	.LVL16:
+ 208               	.L13:
+  70:../drivers/timer.c ****     }
+ 209               		.loc 1 70 0
+ 210 00a8 81E0      		ldi r24,lo8(1)
+ 211               	.LVL17:
+  75:../drivers/timer.c **** }
+ 212               		.loc 1 75 0
+ 213 00aa 0895      		ret
+ 214               		.cfi_endproc
+ 215               	.LFE4:
+ 217               	.global	timer_handler
+ 219               	timer_handler:
+ 220               	.LFB5:
+  76:../drivers/timer.c **** 
+  77:../drivers/timer.c **** void timer_handler(void)
+  78:../drivers/timer.c **** {
+ 221               		.loc 1 78 0
+ 222               		.cfi_startproc
+ 223 00ac CF93      		push r28
+ 224               	.LCFI3:
+ 225               		.cfi_def_cfa_offset 3
+ 226               		.cfi_offset 28, -2
+ 227 00ae DF93      		push r29
+ 228               	.LCFI4:
+ 229               		.cfi_def_cfa_offset 4
+ 230               		.cfi_offset 29, -3
+ 231               	/* prologue: function */
+ 232               	/* frame size = 0 */
+ 233               	/* stack size = 2 */
+ 234               	.L__stack_usage = 2
+  79:../drivers/timer.c ****     if (timer_flag)
+ 235               		.loc 1 79 0
+ 236 00b0 8091 0000 		lds r24,timer_flag
+ 237 00b4 8823      		tst r24
+ 238 00b6 01F0      		breq .L14
+  80:../drivers/timer.c ****     {
+  81:../drivers/timer.c ****         timer_flag = 0;
+ 239               		.loc 1 81 0
+ 240 00b8 1092 0000 		sts timer_flag,__zero_reg__
+ 241               	.LVL18:
+ 242 00bc C0E0      		ldi r28,lo8(timer_descriptor)
+ 243 00be D0E0      		ldi r29,hi8(timer_descriptor)
+ 244               	.LVL19:
+ 245               	.L19:
+ 246               	.LBB3:
+  82:../drivers/timer.c ****         for (uint8_t i=0; i<TIMER_NUMBER; i++)
+  83:../drivers/timer.c ****         {
+  84:../drivers/timer.c ****             if (timer_descriptor[i].timeout == 0)
+ 247               		.loc 1 84 0
+ 248 00c0 9881      		ld r25,Y
+ 249 00c2 9923      		tst r25
+ 250 00c4 01F0      		breq .L17
+  85:../drivers/timer.c ****             {
+  86:../drivers/timer.c ****                 continue;
+  87:../drivers/timer.c ****             }
+  88:../drivers/timer.c ****             timer_descriptor[i].counter++;
+ 251               		.loc 1 88 0
+ 252 00c6 8981      		ldd r24,Y+1
+ 253 00c8 8F5F      		subi r24,lo8(-(1))
+ 254 00ca 8983      		std Y+1,r24
+  89:../drivers/timer.c ****             if (timer_descriptor[i].counter == timer_descriptor[i].timeout)
+ 255               		.loc 1 89 0
+ 256 00cc 9813      		cpse r25,r24
+ 257 00ce 00C0      		rjmp .L17
+  90:../drivers/timer.c ****             {
+  91:../drivers/timer.c ****                 timer_descriptor[i].counter = 0;
+ 258               		.loc 1 91 0
+ 259 00d0 1982      		std Y+1,__zero_reg__
+  92:../drivers/timer.c ****                 timer_descriptor[i].callback();
+ 260               		.loc 1 92 0
+ 261 00d2 EA81      		ldd r30,Y+2
+ 262 00d4 FB81      		ldd r31,Y+3
+ 263 00d6 0995      		icall
+ 264               	.LVL20:
+ 265               	.L17:
+ 266 00d8 2496      		adiw r28,4
+  82:../drivers/timer.c ****         {
+ 267               		.loc 1 82 0 discriminator 2
+ 268 00da 80E0      		ldi r24,hi8(timer_descriptor+20)
+ 269 00dc C030      		cpi r28,lo8(timer_descriptor+20)
+ 270 00de D807      		cpc r29,r24
+ 271 00e0 01F4      		brne .L19
+ 272               	.L14:
+ 273               	/* epilogue start */
+ 274               	.LBE3:
+  93:../drivers/timer.c ****             }
+  94:../drivers/timer.c ****         }
+  95:../drivers/timer.c ****     }
+  96:../drivers/timer.c **** }
+ 275               		.loc 1 96 0
+ 276 00e2 DF91      		pop r29
+ 277 00e4 CF91      		pop r28
+ 278 00e6 0895      		ret
+ 279               		.cfi_endproc
+ 280               	.LFE5:
+ 282               		.local	timer_flag
+ 283               		.comm	timer_flag,1,1
+ 284               		.local	timer_descriptor
+ 285               		.comm	timer_descriptor,20,1
+ 286               	.Letext0:
+ 287               		.file 2 "/usr/lib/avr/include/stdint.h"
+ 288               		.file 3 "../drivers/timer.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 timer.c
+     /tmp/cco0xgHm.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/cco0xgHm.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/cco0xgHm.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/cco0xgHm.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/cco0xgHm.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/cco0xgHm.s:12     .text:0000000000000000 timer_init
+     /tmp/cco0xgHm.s:283    .bss:0000000000000001 timer_descriptor
+     /tmp/cco0xgHm.s:59     .text:0000000000000030 __vector_11
+                             .bss:0000000000000000 timer_flag
+     /tmp/cco0xgHm.s:98     .text:000000000000004e timer_register
+     /tmp/cco0xgHm.s:143    .text:0000000000000074 timer_stop
+     /tmp/cco0xgHm.s:181    .text:0000000000000090 timer_start
+     /tmp/cco0xgHm.s:219    .text:00000000000000ac timer_handler
+
+UNDEFINED SYMBOLS
+__do_clear_bss

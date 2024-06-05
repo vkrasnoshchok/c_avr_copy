@@ -1,0 +1,614 @@
+   1               		.file	"main.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	temperature_cb
+  12               	temperature_cb:
+  13               	.LFB7:
+  14               		.file 1 "main.c"
+   1:main.c        **** #include "display.h"
+   2:main.c        **** #include <avr/io.h>
+   3:main.c        **** #include <avr/interrupt.h>
+   4:main.c        **** #include <util/delay.h>
+   5:main.c        **** #include "onewire.h"
+   6:main.c        **** #include "ds18b20.h"
+   7:main.c        **** #include "bmp180.h"
+   8:main.c        **** #include "UART.h"
+   9:main.c        **** #include "SPI.h"
+  10:main.c        **** #include "TWI.h"
+  11:main.c        **** #include "timer.h"
+  12:main.c        **** #include <stdint.h>
+  13:main.c        **** #include "neo7m.h"
+  14:main.c        **** #include "max7219.h"
+  15:main.c        **** 
+  16:main.c        **** #define DISPLAY_ENABLED
+  17:main.c        **** 
+  18:main.c        **** #define MOTION_SENSOR_ENABLED
+  19:main.c        **** #define MOTION_TIMER_ID 1
+  20:main.c        **** #define MOTION_TIMER_PERIOD 10 // 1 second
+  21:main.c        **** #define MOTION_PIN (PIND & (1 << PD6))
+  22:main.c        **** #define IDLE_COUNTER_INIT_VALUE 30
+  23:main.c        **** 
+  24:main.c        **** #define TEMPERATURE_TIMER_ID 2
+  25:main.c        **** #define GPS_TIMEOUT_TIMER_ID 3
+  26:main.c        **** 
+  27:main.c        **** int16_t temperature;
+  28:main.c        **** 
+  29:main.c        **** static uint8_t idle_counter=0;
+  30:main.c        **** 
+  31:main.c        **** void convert_temperature(void);
+  32:main.c        **** 
+  33:main.c        **** void print_temperature(void)
+  34:main.c        **** {
+  35:main.c        ****     if (temperature == DS18B20_INVALID_TEMPERATURE)
+  36:main.c        ****     {
+  37:main.c        ****         clear_ext_temperature();
+  38:main.c        ****     }
+  39:main.c        ****     else
+  40:main.c        ****     {
+  41:main.c        ****         if (temperature & 0x0800)
+  42:main.c        ****         {
+  43:main.c        ****             temperature |= 0xF000;
+  44:main.c        ****         }
+  45:main.c        ****         print_ext_temperature(temperature);
+  46:main.c        ****     }
+  47:main.c        ****     timer_register(TEMPERATURE_TIMER_ID, 200, convert_temperature);
+  48:main.c        ****     max7219_update();
+  49:main.c        **** }
+  50:main.c        **** 
+  51:main.c        **** void temperature_cb(uint16_t data)
+  52:main.c        **** {
+  15               		.loc 1 52 0
+  16               		.cfi_startproc
+  17               	.LVL0:
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  53:main.c        ****     temperature = data;
+  22               		.loc 1 53 0
+  23 0000 9093 0000 		sts temperature+1,r25
+  24 0004 8093 0000 		sts temperature,r24
+  54:main.c        ****     timer_register(TEMPERATURE_TIMER_ID, 10, print_temperature);
+  25               		.loc 1 54 0
+  26 0008 40E0      		ldi r20,lo8(gs(print_temperature))
+  27 000a 50E0      		ldi r21,hi8(gs(print_temperature))
+  28 000c 6AE0      		ldi r22,lo8(10)
+  29 000e 82E0      		ldi r24,lo8(2)
+  30               	.LVL1:
+  31 0010 0C94 0000 		jmp timer_register
+  32               	.LVL2:
+  33               		.cfi_endproc
+  34               	.LFE7:
+  36               	.global	print_temperature
+  38               	print_temperature:
+  39               	.LFB6:
+  34:main.c        ****     if (temperature == DS18B20_INVALID_TEMPERATURE)
+  40               		.loc 1 34 0
+  41               		.cfi_startproc
+  42               	/* prologue: function */
+  43               	/* frame size = 0 */
+  44               	/* stack size = 0 */
+  45               	.L__stack_usage = 0
+  35:main.c        ****     {
+  46               		.loc 1 35 0
+  47 0014 8091 0000 		lds r24,temperature
+  48 0018 9091 0000 		lds r25,temperature+1
+  49 001c 8115      		cp r24,__zero_reg__
+  50 001e 20E8      		ldi r18,-128
+  51 0020 9207      		cpc r25,r18
+  52 0022 01F4      		brne .L3
+  37:main.c        ****     }
+  53               		.loc 1 37 0
+  54 0024 0E94 0000 		call clear_ext_temperature
+  55               	.LVL3:
+  56 0028 00C0      		rjmp .L4
+  57               	.L3:
+  41:main.c        ****         {
+  58               		.loc 1 41 0
+  59 002a 93FF      		sbrs r25,3
+  60 002c 00C0      		rjmp .L5
+  43:main.c        ****         }
+  61               		.loc 1 43 0
+  62 002e 906F      		ori r25,240
+  63 0030 9093 0000 		sts temperature+1,r25
+  64 0034 8093 0000 		sts temperature,r24
+  65               	.L5:
+  45:main.c        ****     }
+  66               		.loc 1 45 0
+  67 0038 8091 0000 		lds r24,temperature
+  68 003c 9091 0000 		lds r25,temperature+1
+  69 0040 0E94 0000 		call print_ext_temperature
+  70               	.LVL4:
+  71               	.L4:
+  47:main.c        ****     max7219_update();
+  72               		.loc 1 47 0
+  73 0044 40E0      		ldi r20,lo8(gs(convert_temperature))
+  74 0046 50E0      		ldi r21,hi8(gs(convert_temperature))
+  75 0048 68EC      		ldi r22,lo8(-56)
+  76 004a 82E0      		ldi r24,lo8(2)
+  77 004c 0E94 0000 		call timer_register
+  78               	.LVL5:
+  48:main.c        **** }
+  79               		.loc 1 48 0
+  80 0050 0C94 0000 		jmp max7219_update
+  81               	.LVL6:
+  82               		.cfi_endproc
+  83               	.LFE6:
+  85               	.global	read_temperature
+  87               	read_temperature:
+  88               	.LFB8:
+  55:main.c        **** }
+  56:main.c        **** 
+  57:main.c        **** void read_temperature(void)
+  58:main.c        **** {
+  89               		.loc 1 58 0
+  90               		.cfi_startproc
+  91               	/* prologue: function */
+  92               	/* frame size = 0 */
+  93               	/* stack size = 0 */
+  94               	.L__stack_usage = 0
+  59:main.c        ****     ds18b20_read_temperature(temperature_cb);
+  95               		.loc 1 59 0
+  96 0054 80E0      		ldi r24,lo8(gs(temperature_cb))
+  97 0056 90E0      		ldi r25,hi8(gs(temperature_cb))
+  98 0058 0E94 0000 		call ds18b20_read_temperature
+  99               	.LVL7:
+  60:main.c        ****     timer_register(TEMPERATURE_TIMER_ID, 200, convert_temperature);
+ 100               		.loc 1 60 0
+ 101 005c 40E0      		ldi r20,lo8(gs(convert_temperature))
+ 102 005e 50E0      		ldi r21,hi8(gs(convert_temperature))
+ 103 0060 68EC      		ldi r22,lo8(-56)
+ 104 0062 82E0      		ldi r24,lo8(2)
+ 105 0064 0C94 0000 		jmp timer_register
+ 106               	.LVL8:
+ 107               		.cfi_endproc
+ 108               	.LFE8:
+ 110               	.global	convert_temperature
+ 112               	convert_temperature:
+ 113               	.LFB9:
+  61:main.c        **** }
+  62:main.c        **** 
+  63:main.c        **** void convert_temperature(void)
+  64:main.c        **** {
+ 114               		.loc 1 64 0
+ 115               		.cfi_startproc
+ 116               	/* prologue: function */
+ 117               	/* frame size = 0 */
+ 118               	/* stack size = 0 */
+ 119               	.L__stack_usage = 0
+  65:main.c        ****     ds18b20_convert();
+ 120               		.loc 1 65 0
+ 121 0068 0E94 0000 		call ds18b20_convert
+ 122               	.LVL9:
+  66:main.c        ****     timer_register(TEMPERATURE_TIMER_ID, 10, read_temperature);
+ 123               		.loc 1 66 0
+ 124 006c 40E0      		ldi r20,lo8(gs(read_temperature))
+ 125 006e 50E0      		ldi r21,hi8(gs(read_temperature))
+ 126 0070 6AE0      		ldi r22,lo8(10)
+ 127 0072 82E0      		ldi r24,lo8(2)
+ 128 0074 0C94 0000 		jmp timer_register
+ 129               	.LVL10:
+ 130               		.cfi_endproc
+ 131               	.LFE9:
+ 134               	_time_cb:
+ 135               	.LFB11:
+  67:main.c        **** }
+  68:main.c        **** 
+  69:main.c        **** static void gps_timeout(void)
+  70:main.c        **** {
+  71:main.c        ****     timer_stop(GPS_TIMEOUT_TIMER_ID);
+  72:main.c        ****     display_activate();
+  73:main.c        **** }
+  74:main.c        **** 
+  75:main.c        **** static void _time_cb(void)
+  76:main.c        **** {
+ 136               		.loc 1 76 0
+ 137               		.cfi_startproc
+ 138               	/* prologue: function */
+ 139               	/* frame size = 0 */
+ 140               	/* stack size = 0 */
+ 141               	.L__stack_usage = 0
+  77:main.c        ****     time_update_handler();
+ 142               		.loc 1 77 0
+ 143 0078 0E94 0000 		call time_update_handler
+ 144               	.LVL11:
+  78:main.c        ****     timer_register(GPS_TIMEOUT_TIMER_ID, 200, gps_timeout);
+ 145               		.loc 1 78 0
+ 146 007c 40E0      		ldi r20,lo8(gs(gps_timeout))
+ 147 007e 50E0      		ldi r21,hi8(gs(gps_timeout))
+ 148 0080 68EC      		ldi r22,lo8(-56)
+ 149 0082 83E0      		ldi r24,lo8(3)
+ 150 0084 0C94 0000 		jmp timer_register
+ 151               	.LVL12:
+ 152               		.cfi_endproc
+ 153               	.LFE11:
+ 156               	gps_timeout:
+ 157               	.LFB10:
+  70:main.c        ****     timer_stop(GPS_TIMEOUT_TIMER_ID);
+ 158               		.loc 1 70 0
+ 159               		.cfi_startproc
+ 160               	/* prologue: function */
+ 161               	/* frame size = 0 */
+ 162               	/* stack size = 0 */
+ 163               	.L__stack_usage = 0
+  71:main.c        ****     display_activate();
+ 164               		.loc 1 71 0
+ 165 0088 83E0      		ldi r24,lo8(3)
+ 166 008a 0E94 0000 		call timer_stop
+ 167               	.LVL13:
+  72:main.c        **** }
+ 168               		.loc 1 72 0
+ 169 008e 0C94 0000 		jmp display_activate
+ 170               	.LVL14:
+ 171               		.cfi_endproc
+ 172               	.LFE10:
+ 174               	.global	motion_timer
+ 176               	motion_timer:
+ 177               	.LFB14:
+  79:main.c        **** }
+  80:main.c        **** 
+  81:main.c        **** 
+  82:main.c        **** SIGNAL(PCINT2_vect)
+  83:main.c        **** {
+  84:main.c        ****     // motion interrupt
+  85:main.c        **** }
+  86:main.c        **** 
+  87:main.c        **** inline static void motion_handler(void)
+  88:main.c        **** {
+  89:main.c        ****     if (idle_counter == 0 && MOTION_PIN)
+  90:main.c        ****     {
+  91:main.c        ****         // if (ADC < ILLUMINANCE_ON_VALUE)
+  92:main.c        ****         // {
+  93:main.c        ****         //     LED_CONTROL_PORT |= 1 << LED_CONTROL_PIN;
+  94:main.c        ****         // }
+  95:main.c        ****         display_activate();
+  96:main.c        ****         idle_counter = IDLE_COUNTER_INIT_VALUE;
+  97:main.c        ****     }
+  98:main.c        **** }
+  99:main.c        **** 
+ 100:main.c        **** void motion_timer(void)
+ 101:main.c        **** {
+ 178               		.loc 1 101 0
+ 179               		.cfi_startproc
+ 180               	/* prologue: function */
+ 181               	/* frame size = 0 */
+ 182               	/* stack size = 0 */
+ 183               	.L__stack_usage = 0
+ 102:main.c        ****     uart_send_hex(idle_counter);
+ 184               		.loc 1 102 0
+ 185 0092 8091 0000 		lds r24,idle_counter
+ 186 0096 0E94 0000 		call uart_send_hex
+ 187               	.LVL15:
+ 188 009a 8091 0000 		lds r24,idle_counter
+ 103:main.c        ****     if (MOTION_PIN)
+ 189               		.loc 1 103 0
+ 190 009e 4E9B      		sbis 0x9,6
+ 191 00a0 00C0      		rjmp .L15
+ 104:main.c        ****     {
+ 105:main.c        ****         // if (ADC < ILLUMINANCE_ON_VALUE)
+ 106:main.c        ****         // {
+ 107:main.c        ****         //     LED_CONTROL_PORT |= 1 << LED_CONTROL_PIN;
+ 108:main.c        ****         // }
+ 109:main.c        ****         // else if (ADC > ILLUMINANCE_OFF_VALUE)
+ 110:main.c        ****         // {
+ 111:main.c        ****         //     LED_CONTROL_PORT &= ~(1 << LED_CONTROL_PIN);
+ 112:main.c        ****         // }
+ 113:main.c        ****         if (idle_counter != 0xFF && idle_counter != 0)
+ 192               		.loc 1 113 0
+ 193 00a2 9FEF      		ldi r25,lo8(-1)
+ 194 00a4 980F      		add r25,r24
+ 195 00a6 9E3F      		cpi r25,lo8(-2)
+ 196 00a8 00F4      		brsh .L14
+ 114:main.c        ****         {
+ 115:main.c        ****             idle_counter++;
+ 197               		.loc 1 115 0
+ 198 00aa 8F5F      		subi r24,lo8(-(1))
+ 199 00ac 8093 0000 		sts idle_counter,r24
+ 200 00b0 0895      		ret
+ 201               	.L15:
+ 202               	.LBB4:
+ 203               	.LBB5:
+ 116:main.c        ****         }
+ 117:main.c        ****     }
+ 118:main.c        ****     else if (idle_counter)
+ 204               		.loc 1 118 0
+ 205 00b2 8823      		tst r24
+ 206 00b4 01F0      		breq .L14
+ 119:main.c        ****     {
+ 120:main.c        ****         idle_counter--;
+ 207               		.loc 1 120 0
+ 208 00b6 8150      		subi r24,lo8(-(-1))
+ 209 00b8 8093 0000 		sts idle_counter,r24
+ 121:main.c        ****         if (idle_counter == 0)
+ 210               		.loc 1 121 0
+ 211 00bc 8111      		cpse r24,__zero_reg__
+ 212 00be 00C0      		rjmp .L14
+ 122:main.c        ****         {
+ 123:main.c        ****             // LED_CONTROL_PORT &= ~(1 << LED_CONTROL_PIN);
+ 124:main.c        ****             display_deactivate();
+ 213               		.loc 1 124 0
+ 214 00c0 0C94 0000 		jmp display_deactivate
+ 215               	.LVL16:
+ 216               	.L14:
+ 217 00c4 0895      		ret
+ 218               	.LBE5:
+ 219               	.LBE4:
+ 220               		.cfi_endproc
+ 221               	.LFE14:
+ 223               	.global	__vector_5
+ 225               	__vector_5:
+ 226               	.LFB12:
+  83:main.c        ****     // motion interrupt
+ 227               		.loc 1 83 0
+ 228               		.cfi_startproc
+ 229 00c6 1F92      		push r1
+ 230               	.LCFI0:
+ 231               		.cfi_def_cfa_offset 3
+ 232               		.cfi_offset 1, -2
+ 233 00c8 0F92      		push r0
+ 234               	.LCFI1:
+ 235               		.cfi_def_cfa_offset 4
+ 236               		.cfi_offset 0, -3
+ 237 00ca 0FB6      		in r0,__SREG__
+ 238 00cc 0F92      		push r0
+ 239 00ce 1124      		clr __zero_reg__
+ 240               	/* prologue: Signal */
+ 241               	/* frame size = 0 */
+ 242               	/* stack size = 3 */
+ 243               	.L__stack_usage = 3
+ 244               	/* epilogue start */
+  85:main.c        **** 
+ 245               		.loc 1 85 0
+ 246 00d0 0F90      		pop r0
+ 247 00d2 0FBE      		out __SREG__,r0
+ 248 00d4 0F90      		pop r0
+ 249 00d6 1F90      		pop r1
+ 250 00d8 1895      		reti
+ 251               		.cfi_endproc
+ 252               	.LFE12:
+ 254               	.global	setup
+ 256               	setup:
+ 257               	.LFB15:
+ 125:main.c        ****         }
+ 126:main.c        ****     }
+ 127:main.c        **** }
+ 128:main.c        **** 
+ 129:main.c        **** void setup(void)
+ 130:main.c        **** {
+ 258               		.loc 1 130 0
+ 259               		.cfi_startproc
+ 260               	/* prologue: function */
+ 261               	/* frame size = 0 */
+ 262               	/* stack size = 0 */
+ 263               	.L__stack_usage = 0
+ 131:main.c        ****     twi_init();
+ 264               		.loc 1 131 0
+ 265 00da 0E94 0000 		call twi_init
+ 266               	.LVL17:
+ 132:main.c        ****     spi_master_init();
+ 267               		.loc 1 132 0
+ 268 00de 0E94 0000 		call spi_master_init
+ 269               	.LVL18:
+ 133:main.c        ****     timer_init();
+ 270               		.loc 1 133 0
+ 271 00e2 0E94 0000 		call timer_init
+ 272               	.LVL19:
+ 134:main.c        ****     onewire_init();
+ 273               		.loc 1 134 0
+ 274 00e6 0E94 0000 		call onewire_init
+ 275               	.LVL20:
+ 135:main.c        ****     asm("sei");
+ 276               		.loc 1 135 0
+ 277               	/* #APP */
+ 278               	 ;  135 "main.c" 1
+ 279 00ea 7894      		sei
+ 280               	 ;  0 "" 2
+ 136:main.c        ****     neo7m_init(_time_cb);
+ 281               		.loc 1 136 0
+ 282               	/* #NOAPP */
+ 283 00ec 80E0      		ldi r24,lo8(gs(_time_cb))
+ 284 00ee 90E0      		ldi r25,hi8(gs(_time_cb))
+ 285 00f0 0E94 0000 		call neo7m_init
+ 286               	.LVL21:
+ 137:main.c        ****     bmp180_init(print_int_temperature, print_pressure);
+ 287               		.loc 1 137 0
+ 288 00f4 60E0      		ldi r22,lo8(gs(print_pressure))
+ 289 00f6 70E0      		ldi r23,hi8(gs(print_pressure))
+ 290 00f8 80E0      		ldi r24,lo8(gs(print_int_temperature))
+ 291 00fa 90E0      		ldi r25,hi8(gs(print_int_temperature))
+ 292 00fc 0E94 0000 		call bmp180_init
+ 293               	.LVL22:
+ 138:main.c        ****     //_delay_ms(5);
+ 139:main.c        **** #ifdef DISPLAY_ENABLED
+ 140:main.c        ****     display_init();
+ 294               		.loc 1 140 0
+ 295 0100 0E94 0000 		call display_init
+ 296               	.LVL23:
+ 141:main.c        **** #endif
+ 142:main.c        **** 
+ 143:main.c        ****     asm("sei");
+ 297               		.loc 1 143 0
+ 298               	/* #APP */
+ 299               	 ;  143 "main.c" 1
+ 300 0104 7894      		sei
+ 301               	 ;  0 "" 2
+ 144:main.c        **** 
+ 145:main.c        **** #ifdef MOTION_SENSOR_ENABLED
+ 146:main.c        ****     PCMSK2 |= 1 << PCINT22;
+ 302               		.loc 1 146 0
+ 303               	/* #NOAPP */
+ 304 0106 EDE6      		ldi r30,lo8(109)
+ 305 0108 F0E0      		ldi r31,0
+ 306 010a 8081      		ld r24,Z
+ 307 010c 8064      		ori r24,lo8(64)
+ 308 010e 8083      		st Z,r24
+ 147:main.c        ****     PCICR |= 1 << PCIE2;  // Pin Change Interrupt Enable 2
+ 309               		.loc 1 147 0
+ 310 0110 E8E6      		ldi r30,lo8(104)
+ 311 0112 F0E0      		ldi r31,0
+ 312 0114 8081      		ld r24,Z
+ 313 0116 8460      		ori r24,lo8(4)
+ 314 0118 8083      		st Z,r24
+ 148:main.c        ****     timer_register(MOTION_TIMER_ID, MOTION_TIMER_PERIOD, motion_timer);
+ 315               		.loc 1 148 0
+ 316 011a 40E0      		ldi r20,lo8(gs(motion_timer))
+ 317 011c 50E0      		ldi r21,hi8(gs(motion_timer))
+ 318 011e 6AE0      		ldi r22,lo8(10)
+ 319 0120 81E0      		ldi r24,lo8(1)
+ 320 0122 0C94 0000 		jmp timer_register
+ 321               	.LVL24:
+ 322               		.cfi_endproc
+ 323               	.LFE15:
+ 325               		.section	.text.startup,"ax",@progbits
+ 326               	.global	main
+ 328               	main:
+ 329               	.LFB16:
+ 149:main.c        **** #else
+ 150:main.c        ****     display_activate();
+ 151:main.c        **** #endif
+ 152:main.c        **** 
+ 153:main.c        **** }
+ 154:main.c        **** 
+ 155:main.c        **** int main(void)
+ 156:main.c        **** {
+ 330               		.loc 1 156 0
+ 331               		.cfi_startproc
+ 332               	/* prologue: function */
+ 333               	/* frame size = 0 */
+ 334               	/* stack size = 0 */
+ 335               	.L__stack_usage = 0
+ 157:main.c        ****     setup();
+ 336               		.loc 1 157 0
+ 337 0000 0E94 0000 		call setup
+ 338               	.LVL25:
+ 158:main.c        ****     uart_send_byte('S');
+ 339               		.loc 1 158 0
+ 340 0004 83E5      		ldi r24,lo8(83)
+ 341 0006 0E94 0000 		call uart_send_byte
+ 342               	.LVL26:
+ 159:main.c        ****     convert_temperature();
+ 343               		.loc 1 159 0
+ 344 000a 0E94 0000 		call convert_temperature
+ 345               	.LVL27:
+ 346               	.LBB8:
+ 347               	.LBB9:
+  96:main.c        ****     }
+ 348               		.loc 1 96 0
+ 349 000e CEE1      		ldi r28,lo8(30)
+ 350               	.L26:
+  89:main.c        ****     {
+ 351               		.loc 1 89 0 discriminator 1
+ 352 0010 8091 0000 		lds r24,idle_counter
+ 353 0014 8111      		cpse r24,__zero_reg__
+ 354 0016 00C0      		rjmp .L25
+  89:main.c        ****     {
+ 355               		.loc 1 89 0 is_stmt 0
+ 356 0018 4E9B      		sbis 0x9,6
+ 357 001a 00C0      		rjmp .L25
+  95:main.c        ****         idle_counter = IDLE_COUNTER_INIT_VALUE;
+ 358               		.loc 1 95 0 is_stmt 1
+ 359 001c 0E94 0000 		call display_activate
+ 360               	.LVL28:
+  96:main.c        ****     }
+ 361               		.loc 1 96 0
+ 362 0020 C093 0000 		sts idle_counter,r28
+ 363               	.L25:
+ 364               	.LBE9:
+ 365               	.LBE8:
+ 160:main.c        ****     while(1)
+ 161:main.c        ****     {
+ 162:main.c        **** #ifdef MOTION_SENSOR_ENABLED
+ 163:main.c        ****         motion_handler();
+ 164:main.c        **** #endif
+ 165:main.c        **** #ifdef DISPLAY_ENABLED
+ 166:main.c        ****         max7219_handler();
+ 366               		.loc 1 166 0 discriminator 1
+ 367 0024 0E94 0000 		call max7219_handler
+ 368               	.LVL29:
+ 167:main.c        **** #endif
+ 168:main.c        ****         neo7m_handler();
+ 369               		.loc 1 168 0 discriminator 1
+ 370 0028 0E94 0000 		call neo7m_handler
+ 371               	.LVL30:
+ 169:main.c        ****         bmp180_handler();
+ 372               		.loc 1 169 0 discriminator 1
+ 373 002c 0E94 0000 		call bmp180_handler
+ 374               	.LVL31:
+ 170:main.c        ****         timer_handler();
+ 375               		.loc 1 170 0 discriminator 1
+ 376 0030 0E94 0000 		call timer_handler
+ 377               	.LVL32:
+ 171:main.c        ****     }
+ 378               		.loc 1 171 0 discriminator 1
+ 379 0034 00C0      		rjmp .L26
+ 380               		.cfi_endproc
+ 381               	.LFE16:
+ 383               		.local	idle_counter
+ 384               		.comm	idle_counter,1,1
+ 385               		.comm	temperature,2,1
+ 386               		.text
+ 387               	.Letext0:
+ 388               		.file 2 "/usr/lib/avr/include/stdint.h"
+ 389               		.file 3 "../drivers/timer.h"
+ 390               		.file 4 "display.h"
+ 391               		.file 5 "../drivers/max7219.h"
+ 392               		.file 6 "../drivers/ds18b20.h"
+ 393               		.file 7 "../drivers/UART.h"
+ 394               		.file 8 "../drivers/TWI.h"
+ 395               		.file 9 "../drivers/SPI.h"
+ 396               		.file 10 "../drivers/onewire.h"
+ 397               		.file 11 "../drivers/neo7m.h"
+ 398               		.file 12 "../drivers/bmp180.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 main.c
+     /tmp/ccQCfSl7.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/ccQCfSl7.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/ccQCfSl7.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/ccQCfSl7.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/ccQCfSl7.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/ccQCfSl7.s:12     .text:0000000000000000 temperature_cb
+                            *COM*:0000000000000002 temperature
+     /tmp/ccQCfSl7.s:38     .text:0000000000000014 print_temperature
+     /tmp/ccQCfSl7.s:112    .text:0000000000000068 convert_temperature
+     /tmp/ccQCfSl7.s:87     .text:0000000000000054 read_temperature
+     /tmp/ccQCfSl7.s:134    .text:0000000000000078 _time_cb
+     /tmp/ccQCfSl7.s:156    .text:0000000000000088 gps_timeout
+     /tmp/ccQCfSl7.s:176    .text:0000000000000092 motion_timer
+                             .bss:0000000000000000 idle_counter
+     /tmp/ccQCfSl7.s:225    .text:00000000000000c6 __vector_5
+     /tmp/ccQCfSl7.s:256    .text:00000000000000da setup
+     /tmp/ccQCfSl7.s:328    .text.startup:0000000000000000 main
+
+UNDEFINED SYMBOLS
+timer_register
+clear_ext_temperature
+print_ext_temperature
+max7219_update
+ds18b20_read_temperature
+ds18b20_convert
+time_update_handler
+timer_stop
+display_activate
+uart_send_hex
+display_deactivate
+twi_init
+spi_master_init
+timer_init
+onewire_init
+neo7m_init
+print_pressure
+print_int_temperature
+bmp180_init
+display_init
+uart_send_byte
+max7219_handler
+neo7m_handler
+bmp180_handler
+timer_handler
+__do_clear_bss

@@ -1,0 +1,1607 @@
+   1               		.file	"neo7m.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  11               	_goto_next_field:
+  12               	.LFB8:
+  13               		.file 1 "../drivers/neo7m.c"
+   1:../drivers/neo7m.c **** #include <stdint.h>
+   2:../drivers/neo7m.c **** #include <stdlib.h>
+   3:../drivers/neo7m.c **** #include "UART.h"
+   4:../drivers/neo7m.c **** #include "neo7m.h"
+   5:../drivers/neo7m.c **** 
+   6:../drivers/neo7m.c **** #define TIME_ZONE 2
+   7:../drivers/neo7m.c **** 
+   8:../drivers/neo7m.c **** #define PACKET_MAX_LEN 64
+   9:../drivers/neo7m.c **** #define PACKET_MIN_LEN 24
+  10:../drivers/neo7m.c **** #define START_CODE '$'
+  11:../drivers/neo7m.c **** #define END_CODE '*'
+  12:../drivers/neo7m.c **** 
+  13:../drivers/neo7m.c **** static uint8_t _buf[PACKET_MAX_LEN];
+  14:../drivers/neo7m.c **** static uint8_t _index;
+  15:../drivers/neo7m.c **** static time_cb _time_cb = NULL;
+  16:../drivers/neo7m.c **** 
+  17:../drivers/neo7m.c **** static uint8_t days_in_month[13] = {0x00, 0x32, 0x29,0x32, 0x31, 0x32, 0x31, 0x32, 0x32, 0x31, 0x32
+  18:../drivers/neo7m.c **** 
+  19:../drivers/neo7m.c **** uint8_t second_bcd_l;
+  20:../drivers/neo7m.c **** uint8_t second_bcd_h;
+  21:../drivers/neo7m.c **** uint8_t minute_bcd_l;
+  22:../drivers/neo7m.c **** uint8_t minute_bcd_h;
+  23:../drivers/neo7m.c **** uint8_t hour_bcd_l;
+  24:../drivers/neo7m.c **** uint8_t hour_bcd_h;
+  25:../drivers/neo7m.c **** uint8_t dow;
+  26:../drivers/neo7m.c **** uint8_t date_bcd_l;
+  27:../drivers/neo7m.c **** uint8_t date_bcd_h;
+  28:../drivers/neo7m.c **** uint8_t month_bcd_l;
+  29:../drivers/neo7m.c **** uint8_t month_bcd_h;
+  30:../drivers/neo7m.c **** uint8_t year;
+  31:../drivers/neo7m.c **** uint16_t year_full;
+  32:../drivers/neo7m.c **** 
+  33:../drivers/neo7m.c **** static void _calculate_dow(void)
+  34:../drivers/neo7m.c **** {
+  35:../drivers/neo7m.c ****     int16_t _year = year + 2000;
+  36:../drivers/neo7m.c ****     int8_t _month = month_bcd_h * 10 + month_bcd_l;
+  37:../drivers/neo7m.c ****     int8_t _date = date_bcd_h * 10 + date_bcd_l;
+  38:../drivers/neo7m.c **** 
+  39:../drivers/neo7m.c ****     int8_t a = _month < 3 ? 1 : 0;
+  40:../drivers/neo7m.c ****     int16_t y = _year - a;
+  41:../drivers/neo7m.c ****     int8_t m = _month + 12 * a - 2;
+  42:../drivers/neo7m.c ****     dow = (7000 + (_date + y + y / 4 - y / 100 + y / 400 + (31 * m) / 12)) % 7 + 1;
+  43:../drivers/neo7m.c **** }
+  44:../drivers/neo7m.c **** 
+  45:../drivers/neo7m.c **** static inline void _correct_february_day_number(void)
+  46:../drivers/neo7m.c **** {
+  47:../drivers/neo7m.c ****     if (year & 3 || year == 0)
+  48:../drivers/neo7m.c ****     {
+  49:../drivers/neo7m.c ****         days_in_month[2] = 0x29;
+  50:../drivers/neo7m.c ****     }
+  51:../drivers/neo7m.c ****     else
+  52:../drivers/neo7m.c ****     {
+  53:../drivers/neo7m.c ****         days_in_month[2] = 0x30;
+  54:../drivers/neo7m.c ****     }
+  55:../drivers/neo7m.c **** }
+  56:../drivers/neo7m.c **** 
+  57:../drivers/neo7m.c **** static inline uint8_t _correct_summer_time(void)
+  58:../drivers/neo7m.c **** {
+  59:../drivers/neo7m.c ****     uint8_t month_bcd = (month_bcd_h << 4) + month_bcd_l;
+  60:../drivers/neo7m.c ****     uint8_t date = date_bcd_h * 10 + date_bcd_l;
+  61:../drivers/neo7m.c ****     uint8_t hour_bcd = (hour_bcd_h << 4) + hour_bcd_l;
+  62:../drivers/neo7m.c ****     if (month_bcd < 0x03 || month_bcd > 0x10) // it is Winter
+  63:../drivers/neo7m.c ****     {
+  64:../drivers/neo7m.c ****         return 0;
+  65:../drivers/neo7m.c ****     }
+  66:../drivers/neo7m.c ****     if (month_bcd > 0x03 && month_bcd < 0x10) // it is Summer
+  67:../drivers/neo7m.c ****     {
+  68:../drivers/neo7m.c ****         return 1;
+  69:../drivers/neo7m.c ****     }
+  70:../drivers/neo7m.c ****     if (month_bcd == 0x03) // March
+  71:../drivers/neo7m.c ****     {
+  72:../drivers/neo7m.c ****         if (23 + dow >= date) // before last Sunday
+  73:../drivers/neo7m.c ****         {
+  74:../drivers/neo7m.c ****             return 0;
+  75:../drivers/neo7m.c ****         }
+  76:../drivers/neo7m.c ****         if (dow == 1 && hour_bcd + TIME_ZONE < 3)  // Sunday before 3
+  77:../drivers/neo7m.c ****         {
+  78:../drivers/neo7m.c ****             return 0;
+  79:../drivers/neo7m.c ****         }
+  80:../drivers/neo7m.c ****         else
+  81:../drivers/neo7m.c ****         {
+  82:../drivers/neo7m.c ****             return 1;
+  83:../drivers/neo7m.c ****         }
+  84:../drivers/neo7m.c ****     }
+  85:../drivers/neo7m.c ****     else if (month_bcd == 0x10) // October
+  86:../drivers/neo7m.c ****     {
+  87:../drivers/neo7m.c ****         if (23 + dow >= date) //  before last Sunday
+  88:../drivers/neo7m.c ****         {
+  89:../drivers/neo7m.c ****             return 1;
+  90:../drivers/neo7m.c ****         }
+  91:../drivers/neo7m.c ****         if (dow == 1 && hour_bcd + TIME_ZONE <= 3)  // Sunday before 3
+  92:../drivers/neo7m.c ****         {
+  93:../drivers/neo7m.c ****             return 1;
+  94:../drivers/neo7m.c ****         }
+  95:../drivers/neo7m.c ****         else
+  96:../drivers/neo7m.c ****         {
+  97:../drivers/neo7m.c ****             return 0;
+  98:../drivers/neo7m.c ****         }
+  99:../drivers/neo7m.c ****     }
+ 100:../drivers/neo7m.c ****     return 0;
+ 101:../drivers/neo7m.c **** }
+ 102:../drivers/neo7m.c **** 
+ 103:../drivers/neo7m.c **** static void _correct_time_zone(void)
+ 104:../drivers/neo7m.c **** {
+ 105:../drivers/neo7m.c ****     uint8_t tz = TIME_ZONE;
+ 106:../drivers/neo7m.c ****     tz += _correct_summer_time();
+ 107:../drivers/neo7m.c ****     _correct_february_day_number();
+ 108:../drivers/neo7m.c ****     hour_bcd_l += tz;
+ 109:../drivers/neo7m.c ****     if (hour_bcd_l >= 10)
+ 110:../drivers/neo7m.c ****     {
+ 111:../drivers/neo7m.c ****         hour_bcd_l -= 10;
+ 112:../drivers/neo7m.c ****         hour_bcd_h++;
+ 113:../drivers/neo7m.c ****     }
+ 114:../drivers/neo7m.c ****     if (hour_bcd_h == 2 && hour_bcd_l == 4)
+ 115:../drivers/neo7m.c ****     {
+ 116:../drivers/neo7m.c ****         hour_bcd_l = 0;
+ 117:../drivers/neo7m.c ****         hour_bcd_h = 0;
+ 118:../drivers/neo7m.c ****         date_bcd_l++;
+ 119:../drivers/neo7m.c ****         if (date_bcd_l == 10)
+ 120:../drivers/neo7m.c ****         {
+ 121:../drivers/neo7m.c ****             date_bcd_l = 0;
+ 122:../drivers/neo7m.c ****             date_bcd_h++;
+ 123:../drivers/neo7m.c ****         }
+ 124:../drivers/neo7m.c ****         if ((date_bcd_h << 4) + date_bcd_l == days_in_month[(month_bcd_h << 4) + month_bcd_l])
+ 125:../drivers/neo7m.c ****         {
+ 126:../drivers/neo7m.c ****             date_bcd_l = 1;
+ 127:../drivers/neo7m.c ****             date_bcd_h = 0;
+ 128:../drivers/neo7m.c ****             month_bcd_l++;
+ 129:../drivers/neo7m.c ****             if (month_bcd_l == 10)
+ 130:../drivers/neo7m.c ****             {
+ 131:../drivers/neo7m.c ****                 month_bcd_l = 0;
+ 132:../drivers/neo7m.c ****                 month_bcd_h++;
+ 133:../drivers/neo7m.c ****             }
+ 134:../drivers/neo7m.c ****             if (month_bcd_h == 1 && month_bcd_l == 3)
+ 135:../drivers/neo7m.c ****             {
+ 136:../drivers/neo7m.c ****                 month_bcd_l = 1;
+ 137:../drivers/neo7m.c ****                 month_bcd_h = 0;
+ 138:../drivers/neo7m.c ****                 year++;
+ 139:../drivers/neo7m.c ****             }
+ 140:../drivers/neo7m.c ****         }
+ 141:../drivers/neo7m.c ****     }
+ 142:../drivers/neo7m.c ****     _calculate_dow();
+ 143:../drivers/neo7m.c **** }
+ 144:../drivers/neo7m.c **** 
+ 145:../drivers/neo7m.c **** static uint8_t _goto_next_field(uint8_t **buf)
+ 146:../drivers/neo7m.c **** {
+  14               		.loc 1 146 0
+  15               		.cfi_startproc
+  16               	.LVL0:
+  17               	/* prologue: function */
+  18               	/* frame size = 0 */
+  19               	/* stack size = 0 */
+  20               	.L__stack_usage = 0
+ 147:../drivers/neo7m.c ****     while (*buf < _buf + _index)
+  21               		.loc 1 147 0
+  22 0000 2091 0000 		lds r18,_index
+  23 0004 30E0      		ldi r19,0
+  24 0006 2050      		subi r18,lo8(-(_buf))
+  25 0008 3040      		sbci r19,hi8(-(_buf))
+  26               	.L2:
+  27 000a DC01      		movw r26,r24
+  28 000c ED91      		ld r30,X+
+  29 000e FC91      		ld r31,X
+  30 0010 E217      		cp r30,r18
+  31 0012 F307      		cpc r31,r19
+  32 0014 00F4      		brsh .L7
+ 148:../drivers/neo7m.c ****     {
+ 149:../drivers/neo7m.c ****         (*buf)++;
+  33               		.loc 1 149 0
+  34 0016 AF01      		movw r20,r30
+  35 0018 4F5F      		subi r20,-1
+  36 001a 5F4F      		sbci r21,-1
+  37 001c DC01      		movw r26,r24
+  38 001e 4D93      		st X+,r20
+  39 0020 5C93      		st X,r21
+ 150:../drivers/neo7m.c ****         if (**buf == ',')
+  40               		.loc 1 150 0
+  41 0022 4181      		ldd r20,Z+1
+  42 0024 4C32      		cpi r20,lo8(44)
+  43 0026 01F4      		brne .L2
+ 151:../drivers/neo7m.c ****         {
+ 152:../drivers/neo7m.c ****             return 0;
+  44               		.loc 1 152 0
+  45 0028 80E0      		ldi r24,0
+  46               	.LVL1:
+ 153:../drivers/neo7m.c ****         }
+ 154:../drivers/neo7m.c ****     }
+ 155:../drivers/neo7m.c ****     return 1;
+ 156:../drivers/neo7m.c **** }
+  47               		.loc 1 156 0
+  48 002a 0895      		ret
+  49               	.LVL2:
+  50               	.L7:
+ 155:../drivers/neo7m.c **** }
+  51               		.loc 1 155 0
+  52 002c 81E0      		ldi r24,lo8(1)
+  53               	.LVL3:
+  54 002e 0895      		ret
+  55               		.cfi_endproc
+  56               	.LFE8:
+  58               	.global	neo7m_init
+  60               	neo7m_init:
+  61               	.LFB12:
+ 157:../drivers/neo7m.c **** 
+ 158:../drivers/neo7m.c **** inline uint8_t _read_bcd(uint8_t **buf)
+ 159:../drivers/neo7m.c **** {
+ 160:../drivers/neo7m.c ****     (*buf)++;
+ 161:../drivers/neo7m.c ****     return **buf - '0';
+ 162:../drivers/neo7m.c **** }
+ 163:../drivers/neo7m.c **** 
+ 164:../drivers/neo7m.c **** static void _packet_parser1(void)
+ 165:../drivers/neo7m.c **** {
+ 166:../drivers/neo7m.c ****     if (_buf[2] == 'Z' &&
+ 167:../drivers/neo7m.c ****         _buf[3] == 'D' &&
+ 168:../drivers/neo7m.c ****         _buf[4] == 'A')
+ 169:../drivers/neo7m.c ****     {
+ 170:../drivers/neo7m.c ****         uint8_t *_tmp_buf = _buf;
+ 171:../drivers/neo7m.c ****         if (_goto_next_field(&_tmp_buf))
+ 172:../drivers/neo7m.c ****         {
+ 173:../drivers/neo7m.c ****             return;
+ 174:../drivers/neo7m.c ****         }
+ 175:../drivers/neo7m.c ****         hour_bcd_h = _read_bcd(&_tmp_buf);
+ 176:../drivers/neo7m.c ****         hour_bcd_l = _read_bcd(&_tmp_buf);
+ 177:../drivers/neo7m.c ****         minute_bcd_h = _read_bcd(&_tmp_buf);
+ 178:../drivers/neo7m.c ****         minute_bcd_l = _read_bcd(&_tmp_buf);
+ 179:../drivers/neo7m.c ****         second_bcd_h = _read_bcd(&_tmp_buf);
+ 180:../drivers/neo7m.c ****         second_bcd_l = _read_bcd(&_tmp_buf);
+ 181:../drivers/neo7m.c ****         if (_goto_next_field(&_tmp_buf))
+ 182:../drivers/neo7m.c ****         {
+ 183:../drivers/neo7m.c ****             return;
+ 184:../drivers/neo7m.c ****         }
+ 185:../drivers/neo7m.c ****         date_bcd_h = _read_bcd(&_tmp_buf);
+ 186:../drivers/neo7m.c ****         date_bcd_l = _read_bcd(&_tmp_buf);
+ 187:../drivers/neo7m.c ****         if (_goto_next_field(&_tmp_buf))
+ 188:../drivers/neo7m.c ****         {
+ 189:../drivers/neo7m.c ****             return;
+ 190:../drivers/neo7m.c ****         }
+ 191:../drivers/neo7m.c ****         month_bcd_h = _read_bcd(&_tmp_buf);
+ 192:../drivers/neo7m.c ****         month_bcd_l = _read_bcd(&_tmp_buf);
+ 193:../drivers/neo7m.c ****         if (_goto_next_field(&_tmp_buf))
+ 194:../drivers/neo7m.c ****         {
+ 195:../drivers/neo7m.c ****             return;
+ 196:../drivers/neo7m.c ****         }
+ 197:../drivers/neo7m.c ****         year_full = _read_bcd(&_tmp_buf) * 1000;
+ 198:../drivers/neo7m.c ****         year_full += _read_bcd(&_tmp_buf) * 100;
+ 199:../drivers/neo7m.c ****         year = _read_bcd(&_tmp_buf) * 10;
+ 200:../drivers/neo7m.c ****         year += _read_bcd(&_tmp_buf);
+ 201:../drivers/neo7m.c ****         year_full += year;
+ 202:../drivers/neo7m.c **** 
+ 203:../drivers/neo7m.c ****         if (hour_bcd_h > 9 || hour_bcd_l > 9 ||
+ 204:../drivers/neo7m.c ****             minute_bcd_h > 9 || minute_bcd_l > 9 ||
+ 205:../drivers/neo7m.c ****             second_bcd_h > 9 || second_bcd_l > 9 ||
+ 206:../drivers/neo7m.c ****             date_bcd_h > 9 || date_bcd_l > 9 ||
+ 207:../drivers/neo7m.c ****             month_bcd_h > 9 || month_bcd_l > 9)
+ 208:../drivers/neo7m.c ****         {
+ 209:../drivers/neo7m.c ****             return;
+ 210:../drivers/neo7m.c ****         }
+ 211:../drivers/neo7m.c **** 
+ 212:../drivers/neo7m.c ****         _correct_time_zone();
+ 213:../drivers/neo7m.c ****         if (_time_cb != NULL)
+ 214:../drivers/neo7m.c ****         {
+ 215:../drivers/neo7m.c ****             _time_cb();
+ 216:../drivers/neo7m.c ****         }
+ 217:../drivers/neo7m.c ****     }
+ 218:../drivers/neo7m.c **** }
+ 219:../drivers/neo7m.c **** 
+ 220:../drivers/neo7m.c **** // $GPRMC,124123.00,V,,,,,,,160521,,,N*7B
+ 221:../drivers/neo7m.c **** static void _packet_parser(void)
+ 222:../drivers/neo7m.c **** {
+ 223:../drivers/neo7m.c ****     if (_buf[2] == 'R' &&
+ 224:../drivers/neo7m.c ****         _buf[3] == 'M' &&
+ 225:../drivers/neo7m.c ****         _buf[4] == 'C')
+ 226:../drivers/neo7m.c ****     {
+ 227:../drivers/neo7m.c ****         uint8_t *_tmp_buf = _buf;
+ 228:../drivers/neo7m.c ****         if (_goto_next_field(&_tmp_buf))
+ 229:../drivers/neo7m.c ****         {
+ 230:../drivers/neo7m.c ****             return;
+ 231:../drivers/neo7m.c ****         }
+ 232:../drivers/neo7m.c ****         hour_bcd_h = _read_bcd(&_tmp_buf);
+ 233:../drivers/neo7m.c ****         hour_bcd_l = _read_bcd(&_tmp_buf);
+ 234:../drivers/neo7m.c ****         minute_bcd_h = _read_bcd(&_tmp_buf);
+ 235:../drivers/neo7m.c ****         minute_bcd_l = _read_bcd(&_tmp_buf);
+ 236:../drivers/neo7m.c ****         second_bcd_h = _read_bcd(&_tmp_buf);
+ 237:../drivers/neo7m.c ****         second_bcd_l = _read_bcd(&_tmp_buf);
+ 238:../drivers/neo7m.c ****         for (uint8_t i=0; i<7; i++)
+ 239:../drivers/neo7m.c ****         {
+ 240:../drivers/neo7m.c ****             _goto_next_field(&_tmp_buf);
+ 241:../drivers/neo7m.c ****         }
+ 242:../drivers/neo7m.c ****         if (_goto_next_field(&_tmp_buf))
+ 243:../drivers/neo7m.c ****         {
+ 244:../drivers/neo7m.c ****             return;
+ 245:../drivers/neo7m.c ****         }
+ 246:../drivers/neo7m.c ****         date_bcd_h = _read_bcd(&_tmp_buf);
+ 247:../drivers/neo7m.c ****         date_bcd_l = _read_bcd(&_tmp_buf);
+ 248:../drivers/neo7m.c ****         month_bcd_h = _read_bcd(&_tmp_buf);
+ 249:../drivers/neo7m.c ****         month_bcd_l = _read_bcd(&_tmp_buf);
+ 250:../drivers/neo7m.c ****         year = _read_bcd(&_tmp_buf) * 10;
+ 251:../drivers/neo7m.c ****         year += _read_bcd(&_tmp_buf);
+ 252:../drivers/neo7m.c **** 
+ 253:../drivers/neo7m.c ****         if (hour_bcd_h > 9 || hour_bcd_l > 9 ||
+ 254:../drivers/neo7m.c ****             minute_bcd_h > 9 || minute_bcd_l > 9 ||
+ 255:../drivers/neo7m.c ****             second_bcd_h > 9 || second_bcd_l > 9 ||
+ 256:../drivers/neo7m.c ****             date_bcd_h > 9 || date_bcd_l > 9 ||
+ 257:../drivers/neo7m.c ****             month_bcd_h > 9 || month_bcd_l > 9)
+ 258:../drivers/neo7m.c ****         {
+ 259:../drivers/neo7m.c ****             return;
+ 260:../drivers/neo7m.c ****         }
+ 261:../drivers/neo7m.c ****         uart_send_byte('|');
+ 262:../drivers/neo7m.c ****         uart_send_byte('0' + hour_bcd_h);
+ 263:../drivers/neo7m.c ****         uart_send_byte('0' + hour_bcd_l);
+ 264:../drivers/neo7m.c ****         uart_send_byte(':');
+ 265:../drivers/neo7m.c ****         uart_send_byte('0' + minute_bcd_h);
+ 266:../drivers/neo7m.c ****         uart_send_byte('0' + minute_bcd_l);
+ 267:../drivers/neo7m.c ****         uart_send_byte(':');
+ 268:../drivers/neo7m.c ****         uart_send_byte('0' + second_bcd_h);
+ 269:../drivers/neo7m.c ****         uart_send_byte('0' + second_bcd_l);
+ 270:../drivers/neo7m.c ****         uart_send_byte(' ');
+ 271:../drivers/neo7m.c ****         uart_send_byte('0' + date_bcd_h);
+ 272:../drivers/neo7m.c ****         uart_send_byte('0' + date_bcd_l);
+ 273:../drivers/neo7m.c ****         uart_send_byte('.');
+ 274:../drivers/neo7m.c ****         uart_send_byte('0' + month_bcd_h);
+ 275:../drivers/neo7m.c ****         uart_send_byte('0' + month_bcd_l);
+ 276:../drivers/neo7m.c ****         uart_send_byte('.');
+ 277:../drivers/neo7m.c ****         uart_send_byte('0' + year / 10);
+ 278:../drivers/neo7m.c ****         uart_send_byte('0' + year % 10);
+ 279:../drivers/neo7m.c ****         uart_send_byte('|');
+ 280:../drivers/neo7m.c **** 
+ 281:../drivers/neo7m.c ****         _correct_time_zone();
+ 282:../drivers/neo7m.c ****         if (_time_cb != NULL)
+ 283:../drivers/neo7m.c ****         {
+ 284:../drivers/neo7m.c ****             _time_cb();
+ 285:../drivers/neo7m.c ****         }
+ 286:../drivers/neo7m.c ****     }
+ 287:../drivers/neo7m.c **** }
+ 288:../drivers/neo7m.c **** 
+ 289:../drivers/neo7m.c **** void neo7m_init(time_cb cb)
+ 290:../drivers/neo7m.c **** {
+  62               		.loc 1 290 0
+  63               		.cfi_startproc
+  64               	.LVL4:
+  65               	/* prologue: function */
+  66               	/* frame size = 0 */
+  67               	/* stack size = 0 */
+  68               	.L__stack_usage = 0
+ 291:../drivers/neo7m.c ****     _time_cb = cb;
+  69               		.loc 1 291 0
+  70 0030 9093 0000 		sts _time_cb+1,r25
+  71 0034 8093 0000 		sts _time_cb,r24
+ 292:../drivers/neo7m.c ****     uart_init();
+  72               		.loc 1 292 0
+  73 0038 0C94 0000 		jmp uart_init
+  74               	.LVL5:
+  75               		.cfi_endproc
+  76               	.LFE12:
+  78               	.global	neo7m_handler
+  80               	neo7m_handler:
+  81               	.LFB13:
+ 293:../drivers/neo7m.c **** }
+ 294:../drivers/neo7m.c **** 
+ 295:../drivers/neo7m.c **** void neo7m_handler(void)
+ 296:../drivers/neo7m.c **** {
+  82               		.loc 1 296 0
+  83               		.cfi_startproc
+  84 003c 2F92      		push r2
+  85               	.LCFI0:
+  86               		.cfi_def_cfa_offset 3
+  87               		.cfi_offset 2, -2
+  88 003e 3F92      		push r3
+  89               	.LCFI1:
+  90               		.cfi_def_cfa_offset 4
+  91               		.cfi_offset 3, -3
+  92 0040 4F92      		push r4
+  93               	.LCFI2:
+  94               		.cfi_def_cfa_offset 5
+  95               		.cfi_offset 4, -4
+  96 0042 5F92      		push r5
+  97               	.LCFI3:
+  98               		.cfi_def_cfa_offset 6
+  99               		.cfi_offset 5, -5
+ 100 0044 6F92      		push r6
+ 101               	.LCFI4:
+ 102               		.cfi_def_cfa_offset 7
+ 103               		.cfi_offset 6, -6
+ 104 0046 8F92      		push r8
+ 105               	.LCFI5:
+ 106               		.cfi_def_cfa_offset 8
+ 107               		.cfi_offset 8, -7
+ 108 0048 9F92      		push r9
+ 109               	.LCFI6:
+ 110               		.cfi_def_cfa_offset 9
+ 111               		.cfi_offset 9, -8
+ 112 004a AF92      		push r10
+ 113               	.LCFI7:
+ 114               		.cfi_def_cfa_offset 10
+ 115               		.cfi_offset 10, -9
+ 116 004c BF92      		push r11
+ 117               	.LCFI8:
+ 118               		.cfi_def_cfa_offset 11
+ 119               		.cfi_offset 11, -10
+ 120 004e CF92      		push r12
+ 121               	.LCFI9:
+ 122               		.cfi_def_cfa_offset 12
+ 123               		.cfi_offset 12, -11
+ 124 0050 DF92      		push r13
+ 125               	.LCFI10:
+ 126               		.cfi_def_cfa_offset 13
+ 127               		.cfi_offset 13, -12
+ 128 0052 EF92      		push r14
+ 129               	.LCFI11:
+ 130               		.cfi_def_cfa_offset 14
+ 131               		.cfi_offset 14, -13
+ 132 0054 FF92      		push r15
+ 133               	.LCFI12:
+ 134               		.cfi_def_cfa_offset 15
+ 135               		.cfi_offset 15, -14
+ 136 0056 1F93      		push r17
+ 137               	.LCFI13:
+ 138               		.cfi_def_cfa_offset 16
+ 139               		.cfi_offset 17, -15
+ 140 0058 CF93      		push r28
+ 141               	.LCFI14:
+ 142               		.cfi_def_cfa_offset 17
+ 143               		.cfi_offset 28, -16
+ 144 005a DF93      		push r29
+ 145               	.LCFI15:
+ 146               		.cfi_def_cfa_offset 18
+ 147               		.cfi_offset 29, -17
+ 148 005c 00D0      		rcall .
+ 149               	.LCFI16:
+ 150               		.cfi_def_cfa_offset 20
+ 151 005e CDB7      		in r28,__SP_L__
+ 152 0060 DEB7      		in r29,__SP_H__
+ 153               	.LCFI17:
+ 154               		.cfi_def_cfa_register 28
+ 155               	/* prologue: function */
+ 156               	/* frame size = 2 */
+ 157               	/* stack size = 18 */
+ 158               	.L__stack_usage = 18
+ 159               	.LBB65:
+ 160               	.LBB66:
+ 161               	.LBB67:
+ 162               	.LBB68:
+ 277:../drivers/neo7m.c ****         uart_send_byte('0' + year % 10);
+ 163               		.loc 1 277 0
+ 164 0062 6AE0      		ldi r22,lo8(10)
+ 165 0064 662E      		mov r6,r22
+ 166               	.LBB69:
+ 167               	.LBB70:
+ 168               	.LBB71:
+ 169               	.LBB72:
+  39:../drivers/neo7m.c ****     int16_t y = _year - a;
+ 170               		.loc 1 39 0
+ 171 0066 2224      		clr r2
+ 172 0068 2394      		inc r2
+  41:../drivers/neo7m.c ****     dow = (7000 + (_date + y + y / 4 - y / 100 + y / 400 + (31 * m) / 12)) % 7 + 1;
+ 173               		.loc 1 41 0
+ 174 006a 7CE0      		ldi r23,lo8(12)
+ 175 006c 372E      		mov r3,r23
+  42:../drivers/neo7m.c **** }
+ 176               		.loc 1 42 0
+ 177 006e ECE9      		ldi r30,lo8(-100)
+ 178 0070 EE2E      		mov r14,r30
+ 179 0072 FF24      		clr r15
+ 180 0074 FA94      		dec r15
+ 181 0076 F0E9      		ldi r31,lo8(-112)
+ 182 0078 CF2E      		mov r12,r31
+ 183 007a DD24      		clr r13
+ 184 007c D394      		inc r13
+ 185 007e ACE0      		ldi r26,lo8(12)
+ 186 0080 AA2E      		mov r10,r26
+ 187 0082 B12C      		mov r11,__zero_reg__
+ 188 0084 B7E0      		ldi r27,lo8(7)
+ 189 0086 8B2E      		mov r8,r27
+ 190 0088 912C      		mov r9,__zero_reg__
+ 191               	.LBE72:
+ 192               	.LBE71:
+ 193               	.LBB74:
+ 194               	.LBB75:
+  49:../drivers/neo7m.c ****     }
+ 195               		.loc 1 49 0
+ 196 008a 19E2      		ldi r17,lo8(41)
+ 197 008c 412E      		mov r4,r17
+  53:../drivers/neo7m.c ****     }
+ 198               		.loc 1 53 0
+ 199 008e 80E3      		ldi r24,lo8(48)
+ 200 0090 582E      		mov r5,r24
+ 201               	.L10:
+ 202               	.LBE75:
+ 203               	.LBE74:
+ 204               	.LBE70:
+ 205               	.LBE69:
+ 206               	.LBE68:
+ 207               	.LBE67:
+ 208               	.LBE66:
+ 209               	.LBE65:
+ 297:../drivers/neo7m.c ****     while (uart_check_receiver())
+ 210               		.loc 1 297 0
+ 211 0092 0E94 0000 		call uart_check_receiver
+ 212               	.LVL6:
+ 213 0096 8823      		tst r24
+ 214 0098 01F4      		brne .+2
+ 215 009a 00C0      		rjmp .L40
+ 216               	.LBB101:
+ 298:../drivers/neo7m.c ****     {
+ 299:../drivers/neo7m.c ****         uint8_t tmp = uart_get_byte();
+ 217               		.loc 1 299 0
+ 218 009c 0E94 0000 		call uart_get_byte
+ 219               	.LVL7:
+ 300:../drivers/neo7m.c ****         // uart_send_byte(tmp);
+ 301:../drivers/neo7m.c ****         // uart_send_hex(tmp);
+ 302:../drivers/neo7m.c ****         if (tmp == START_CODE)
+ 220               		.loc 1 302 0
+ 221 00a0 8432      		cpi r24,lo8(36)
+ 222 00a2 01F4      		brne .L11
+ 303:../drivers/neo7m.c ****         {
+ 304:../drivers/neo7m.c ****             _index = 0;
+ 223               		.loc 1 304 0
+ 224 00a4 1092 0000 		sts _index,__zero_reg__
+ 225 00a8 00C0      		rjmp .L10
+ 226               	.L11:
+ 305:../drivers/neo7m.c ****         }
+ 306:../drivers/neo7m.c ****         else if (_index < PACKET_MAX_LEN)
+ 227               		.loc 1 306 0
+ 228 00aa E091 0000 		lds r30,_index
+ 229 00ae E034      		cpi r30,lo8(64)
+ 230 00b0 00F4      		brsh .L10
+ 307:../drivers/neo7m.c ****         {
+ 308:../drivers/neo7m.c ****             if (tmp == END_CODE)
+ 231               		.loc 1 308 0
+ 232 00b2 8A32      		cpi r24,lo8(42)
+ 233 00b4 01F0      		breq .+2
+ 234 00b6 00C0      		rjmp .L13
+ 309:../drivers/neo7m.c ****             {
+ 310:../drivers/neo7m.c ****                 if (_index > PACKET_MIN_LEN)
+ 235               		.loc 1 310 0
+ 236 00b8 E931      		cpi r30,lo8(25)
+ 237 00ba 00F0      		brlo .L10
+ 238               	.LBB100:
+ 239               	.LBB99:
+ 223:../drivers/neo7m.c ****         _buf[3] == 'M' &&
+ 240               		.loc 1 223 0
+ 241 00bc 8091 0000 		lds r24,_buf+2
+ 242               	.LVL8:
+ 243 00c0 8235      		cpi r24,lo8(82)
+ 244 00c2 01F4      		brne .L10
+ 245 00c4 8091 0000 		lds r24,_buf+3
+ 246 00c8 8D34      		cpi r24,lo8(77)
+ 247 00ca 01F4      		brne .L10
+ 224:../drivers/neo7m.c ****         _buf[4] == 'C')
+ 248               		.loc 1 224 0
+ 249 00cc 8091 0000 		lds r24,_buf+4
+ 250 00d0 8334      		cpi r24,lo8(67)
+ 251 00d2 01F4      		brne .L10
+ 252               	.LBB98:
+ 227:../drivers/neo7m.c ****         if (_goto_next_field(&_tmp_buf))
+ 253               		.loc 1 227 0
+ 254 00d4 20E0      		ldi r18,lo8(_buf)
+ 255 00d6 30E0      		ldi r19,hi8(_buf)
+ 256 00d8 3A83      		std Y+2,r19
+ 257 00da 2983      		std Y+1,r18
+ 228:../drivers/neo7m.c ****         {
+ 258               		.loc 1 228 0
+ 259 00dc CE01      		movw r24,r28
+ 260 00de 0196      		adiw r24,1
+ 261 00e0 0E94 0000 		call _goto_next_field
+ 262               	.LVL9:
+ 263 00e4 8111      		cpse r24,__zero_reg__
+ 264 00e6 00C0      		rjmp .L10
+ 265               	.LVL10:
+ 266               	.LBB82:
+ 267               	.LBB83:
+ 160:../drivers/neo7m.c ****     return **buf - '0';
+ 268               		.loc 1 160 0
+ 269 00e8 E981      		ldd r30,Y+1
+ 270 00ea FA81      		ldd r31,Y+2
+ 271 00ec CF01      		movw r24,r30
+ 272 00ee 0196      		adiw r24,1
+ 273 00f0 9A83      		std Y+2,r25
+ 274 00f2 8983      		std Y+1,r24
+ 275               	.LVL11:
+ 276               	.LBE83:
+ 277               	.LBE82:
+ 232:../drivers/neo7m.c ****         hour_bcd_l = _read_bcd(&_tmp_buf);
+ 278               		.loc 1 232 0
+ 279 00f4 8181      		ldd r24,Z+1
+ 280 00f6 8053      		subi r24,lo8(-(-48))
+ 281 00f8 8093 0000 		sts hour_bcd_h,r24
+ 233:../drivers/neo7m.c ****         minute_bcd_h = _read_bcd(&_tmp_buf);
+ 282               		.loc 1 233 0
+ 283 00fc 8281      		ldd r24,Z+2
+ 284 00fe 8053      		subi r24,lo8(-(-48))
+ 285 0100 8093 0000 		sts hour_bcd_l,r24
+ 234:../drivers/neo7m.c ****         minute_bcd_l = _read_bcd(&_tmp_buf);
+ 286               		.loc 1 234 0
+ 287 0104 8381      		ldd r24,Z+3
+ 288 0106 8053      		subi r24,lo8(-(-48))
+ 289 0108 8093 0000 		sts minute_bcd_h,r24
+ 235:../drivers/neo7m.c ****         second_bcd_h = _read_bcd(&_tmp_buf);
+ 290               		.loc 1 235 0
+ 291 010c 8481      		ldd r24,Z+4
+ 292 010e 8053      		subi r24,lo8(-(-48))
+ 293 0110 8093 0000 		sts minute_bcd_l,r24
+ 236:../drivers/neo7m.c ****         second_bcd_l = _read_bcd(&_tmp_buf);
+ 294               		.loc 1 236 0
+ 295 0114 8581      		ldd r24,Z+5
+ 296 0116 8053      		subi r24,lo8(-(-48))
+ 297 0118 8093 0000 		sts second_bcd_h,r24
+ 298               	.LVL12:
+ 299               	.LBB84:
+ 300               	.LBB85:
+ 160:../drivers/neo7m.c ****     return **buf - '0';
+ 301               		.loc 1 160 0
+ 302 011c CF01      		movw r24,r30
+ 303 011e 0696      		adiw r24,6
+ 304 0120 9A83      		std Y+2,r25
+ 305 0122 8983      		std Y+1,r24
+ 306               	.LVL13:
+ 307               	.LBE85:
+ 308               	.LBE84:
+ 237:../drivers/neo7m.c ****         for (uint8_t i=0; i<7; i++)
+ 309               		.loc 1 237 0
+ 310 0124 8681      		ldd r24,Z+6
+ 311 0126 8053      		subi r24,lo8(-(-48))
+ 312 0128 8093 0000 		sts second_bcd_l,r24
+ 313               	.LVL14:
+ 314 012c 17E0      		ldi r17,lo8(7)
+ 315               	.LVL15:
+ 316               	.L15:
+ 317               	.LBB86:
+ 240:../drivers/neo7m.c ****         }
+ 318               		.loc 1 240 0
+ 319 012e CE01      		movw r24,r28
+ 320 0130 0196      		adiw r24,1
+ 321 0132 0E94 0000 		call _goto_next_field
+ 322               	.LVL16:
+ 323 0136 1150      		subi r17,lo8(-(-1))
+ 324               	.LVL17:
+ 238:../drivers/neo7m.c ****         {
+ 325               		.loc 1 238 0
+ 326 0138 01F4      		brne .L15
+ 327               	.LBE86:
+ 242:../drivers/neo7m.c ****         {
+ 328               		.loc 1 242 0
+ 329 013a CE01      		movw r24,r28
+ 330 013c 0196      		adiw r24,1
+ 331 013e 0E94 0000 		call _goto_next_field
+ 332               	.LVL18:
+ 333 0142 182F      		mov r17,r24
+ 334               	.LVL19:
+ 335 0144 8111      		cpse r24,__zero_reg__
+ 336 0146 00C0      		rjmp .L10
+ 337               	.LVL20:
+ 338               	.LBB87:
+ 339               	.LBB88:
+ 160:../drivers/neo7m.c ****     return **buf - '0';
+ 340               		.loc 1 160 0
+ 341 0148 E981      		ldd r30,Y+1
+ 342 014a FA81      		ldd r31,Y+2
+ 343 014c CF01      		movw r24,r30
+ 344 014e 0196      		adiw r24,1
+ 345 0150 9A83      		std Y+2,r25
+ 346 0152 8983      		std Y+1,r24
+ 161:../drivers/neo7m.c **** }
+ 347               		.loc 1 161 0
+ 348 0154 6181      		ldd r22,Z+1
+ 349 0156 6053      		subi r22,lo8(-(-48))
+ 350               	.LVL21:
+ 351               	.LBE88:
+ 352               	.LBE87:
+ 246:../drivers/neo7m.c ****         date_bcd_l = _read_bcd(&_tmp_buf);
+ 353               		.loc 1 246 0
+ 354 0158 6093 0000 		sts date_bcd_h,r22
+ 355               	.LVL22:
+ 356               	.LBB89:
+ 357               	.LBB90:
+ 161:../drivers/neo7m.c **** }
+ 358               		.loc 1 161 0
+ 359 015c 3281      		ldd r19,Z+2
+ 360 015e 3053      		subi r19,lo8(-(-48))
+ 361               	.LVL23:
+ 362               	.LBE90:
+ 363               	.LBE89:
+ 247:../drivers/neo7m.c ****         month_bcd_h = _read_bcd(&_tmp_buf);
+ 364               		.loc 1 247 0
+ 365 0160 3093 0000 		sts date_bcd_l,r19
+ 366               	.LVL24:
+ 367               	.LBB91:
+ 368               	.LBB92:
+ 161:../drivers/neo7m.c **** }
+ 369               		.loc 1 161 0
+ 370 0164 2381      		ldd r18,Z+3
+ 371 0166 2053      		subi r18,lo8(-(-48))
+ 372               	.LVL25:
+ 373               	.LBE92:
+ 374               	.LBE91:
+ 248:../drivers/neo7m.c ****         month_bcd_l = _read_bcd(&_tmp_buf);
+ 375               		.loc 1 248 0
+ 376 0168 2093 0000 		sts month_bcd_h,r18
+ 377               	.LVL26:
+ 378               	.LBB93:
+ 379               	.LBB94:
+ 161:../drivers/neo7m.c **** }
+ 380               		.loc 1 161 0
+ 381 016c 9481      		ldd r25,Z+4
+ 382 016e 9053      		subi r25,lo8(-(-48))
+ 383               	.LVL27:
+ 384               	.LBE94:
+ 385               	.LBE93:
+ 249:../drivers/neo7m.c ****         year = _read_bcd(&_tmp_buf) * 10;
+ 386               		.loc 1 249 0
+ 387 0170 9093 0000 		sts month_bcd_l,r25
+ 250:../drivers/neo7m.c ****         year += _read_bcd(&_tmp_buf);
+ 388               		.loc 1 250 0
+ 389 0174 7581      		ldd r23,Z+5
+ 390 0176 7053      		subi r23,lo8(-(-48))
+ 391               	.LVL28:
+ 392               	.LBB95:
+ 393               	.LBB96:
+ 160:../drivers/neo7m.c ****     return **buf - '0';
+ 394               		.loc 1 160 0
+ 395 0178 AF01      		movw r20,r30
+ 396 017a 4A5F      		subi r20,-6
+ 397 017c 5F4F      		sbci r21,-1
+ 398 017e 5A83      		std Y+2,r21
+ 399 0180 4983      		std Y+1,r20
+ 400               	.LVL29:
+ 401               	.LBE96:
+ 402               	.LBE95:
+ 251:../drivers/neo7m.c **** 
+ 403               		.loc 1 251 0
+ 404 0182 8681      		ldd r24,Z+6
+ 405 0184 8053      		subi r24,lo8(-(-48))
+ 406 0186 4AE0      		ldi r20,lo8(10)
+ 407 0188 749F      		mul r23,r20
+ 408 018a 800D      		add r24,r0
+ 409 018c 1124      		clr __zero_reg__
+ 410 018e 8093 0000 		sts year,r24
+ 253:../drivers/neo7m.c ****             minute_bcd_h > 9 || minute_bcd_l > 9 ||
+ 411               		.loc 1 253 0
+ 412 0192 8091 0000 		lds r24,hour_bcd_h
+ 413 0196 8A30      		cpi r24,lo8(10)
+ 414 0198 00F0      		brlo .+2
+ 415 019a 00C0      		rjmp .L10
+ 416 019c 8091 0000 		lds r24,hour_bcd_l
+ 417 01a0 8A30      		cpi r24,lo8(10)
+ 418 01a2 00F0      		brlo .+2
+ 419 01a4 00C0      		rjmp .L10
+ 420 01a6 8091 0000 		lds r24,minute_bcd_h
+ 421 01aa 8A30      		cpi r24,lo8(10)
+ 422 01ac 00F0      		brlo .+2
+ 423 01ae 00C0      		rjmp .L10
+ 254:../drivers/neo7m.c ****             second_bcd_h > 9 || second_bcd_l > 9 ||
+ 424               		.loc 1 254 0
+ 425 01b0 8091 0000 		lds r24,minute_bcd_l
+ 426 01b4 8A30      		cpi r24,lo8(10)
+ 427 01b6 00F0      		brlo .+2
+ 428 01b8 00C0      		rjmp .L10
+ 429 01ba 8091 0000 		lds r24,second_bcd_h
+ 430 01be 8A30      		cpi r24,lo8(10)
+ 431 01c0 00F0      		brlo .+2
+ 432 01c2 00C0      		rjmp .L10
+ 255:../drivers/neo7m.c ****             date_bcd_h > 9 || date_bcd_l > 9 ||
+ 433               		.loc 1 255 0
+ 434 01c4 8091 0000 		lds r24,second_bcd_l
+ 435 01c8 8A30      		cpi r24,lo8(10)
+ 436 01ca 00F0      		brlo .+2
+ 437 01cc 00C0      		rjmp .L10
+ 438 01ce 6A30      		cpi r22,lo8(10)
+ 439 01d0 00F0      		brlo .+2
+ 440 01d2 00C0      		rjmp .L10
+ 256:../drivers/neo7m.c ****             month_bcd_h > 9 || month_bcd_l > 9)
+ 441               		.loc 1 256 0
+ 442 01d4 3A30      		cpi r19,lo8(10)
+ 443 01d6 00F0      		brlo .+2
+ 444 01d8 00C0      		rjmp .L10
+ 445 01da 2A30      		cpi r18,lo8(10)
+ 446 01dc 00F0      		brlo .+2
+ 447 01de 00C0      		rjmp .L10
+ 257:../drivers/neo7m.c ****         {
+ 448               		.loc 1 257 0
+ 449 01e0 9A30      		cpi r25,lo8(10)
+ 450 01e2 00F0      		brlo .+2
+ 451 01e4 00C0      		rjmp .L10
+ 261:../drivers/neo7m.c ****         uart_send_byte('0' + hour_bcd_h);
+ 452               		.loc 1 261 0
+ 453 01e6 8CE7      		ldi r24,lo8(124)
+ 454 01e8 0E94 0000 		call uart_send_byte
+ 455               	.LVL30:
+ 262:../drivers/neo7m.c ****         uart_send_byte('0' + hour_bcd_l);
+ 456               		.loc 1 262 0
+ 457 01ec 8091 0000 		lds r24,hour_bcd_h
+ 458 01f0 805D      		subi r24,lo8(-(48))
+ 459 01f2 0E94 0000 		call uart_send_byte
+ 460               	.LVL31:
+ 263:../drivers/neo7m.c ****         uart_send_byte(':');
+ 461               		.loc 1 263 0
+ 462 01f6 8091 0000 		lds r24,hour_bcd_l
+ 463 01fa 805D      		subi r24,lo8(-(48))
+ 464 01fc 0E94 0000 		call uart_send_byte
+ 465               	.LVL32:
+ 264:../drivers/neo7m.c ****         uart_send_byte('0' + minute_bcd_h);
+ 466               		.loc 1 264 0
+ 467 0200 8AE3      		ldi r24,lo8(58)
+ 468 0202 0E94 0000 		call uart_send_byte
+ 469               	.LVL33:
+ 265:../drivers/neo7m.c ****         uart_send_byte('0' + minute_bcd_l);
+ 470               		.loc 1 265 0
+ 471 0206 8091 0000 		lds r24,minute_bcd_h
+ 472 020a 805D      		subi r24,lo8(-(48))
+ 473 020c 0E94 0000 		call uart_send_byte
+ 474               	.LVL34:
+ 266:../drivers/neo7m.c ****         uart_send_byte(':');
+ 475               		.loc 1 266 0
+ 476 0210 8091 0000 		lds r24,minute_bcd_l
+ 477 0214 805D      		subi r24,lo8(-(48))
+ 478 0216 0E94 0000 		call uart_send_byte
+ 479               	.LVL35:
+ 267:../drivers/neo7m.c ****         uart_send_byte('0' + second_bcd_h);
+ 480               		.loc 1 267 0
+ 481 021a 8AE3      		ldi r24,lo8(58)
+ 482 021c 0E94 0000 		call uart_send_byte
+ 483               	.LVL36:
+ 268:../drivers/neo7m.c ****         uart_send_byte('0' + second_bcd_l);
+ 484               		.loc 1 268 0
+ 485 0220 8091 0000 		lds r24,second_bcd_h
+ 486 0224 805D      		subi r24,lo8(-(48))
+ 487 0226 0E94 0000 		call uart_send_byte
+ 488               	.LVL37:
+ 269:../drivers/neo7m.c ****         uart_send_byte(' ');
+ 489               		.loc 1 269 0
+ 490 022a 8091 0000 		lds r24,second_bcd_l
+ 491 022e 805D      		subi r24,lo8(-(48))
+ 492 0230 0E94 0000 		call uart_send_byte
+ 493               	.LVL38:
+ 270:../drivers/neo7m.c ****         uart_send_byte('0' + date_bcd_h);
+ 494               		.loc 1 270 0
+ 495 0234 80E2      		ldi r24,lo8(32)
+ 496 0236 0E94 0000 		call uart_send_byte
+ 497               	.LVL39:
+ 271:../drivers/neo7m.c ****         uart_send_byte('0' + date_bcd_l);
+ 498               		.loc 1 271 0
+ 499 023a 8091 0000 		lds r24,date_bcd_h
+ 500 023e 805D      		subi r24,lo8(-(48))
+ 501 0240 0E94 0000 		call uart_send_byte
+ 502               	.LVL40:
+ 272:../drivers/neo7m.c ****         uart_send_byte('.');
+ 503               		.loc 1 272 0
+ 504 0244 8091 0000 		lds r24,date_bcd_l
+ 505 0248 805D      		subi r24,lo8(-(48))
+ 506 024a 0E94 0000 		call uart_send_byte
+ 507               	.LVL41:
+ 273:../drivers/neo7m.c ****         uart_send_byte('0' + month_bcd_h);
+ 508               		.loc 1 273 0
+ 509 024e 8EE2      		ldi r24,lo8(46)
+ 510 0250 0E94 0000 		call uart_send_byte
+ 511               	.LVL42:
+ 274:../drivers/neo7m.c ****         uart_send_byte('0' + month_bcd_l);
+ 512               		.loc 1 274 0
+ 513 0254 8091 0000 		lds r24,month_bcd_h
+ 514 0258 805D      		subi r24,lo8(-(48))
+ 515 025a 0E94 0000 		call uart_send_byte
+ 516               	.LVL43:
+ 275:../drivers/neo7m.c ****         uart_send_byte('.');
+ 517               		.loc 1 275 0
+ 518 025e 8091 0000 		lds r24,month_bcd_l
+ 519 0262 805D      		subi r24,lo8(-(48))
+ 520 0264 0E94 0000 		call uart_send_byte
+ 521               	.LVL44:
+ 276:../drivers/neo7m.c ****         uart_send_byte('0' + year / 10);
+ 522               		.loc 1 276 0
+ 523 0268 8EE2      		ldi r24,lo8(46)
+ 524 026a 0E94 0000 		call uart_send_byte
+ 525               	.LVL45:
+ 277:../drivers/neo7m.c ****         uart_send_byte('0' + year % 10);
+ 526               		.loc 1 277 0
+ 527 026e 8091 0000 		lds r24,year
+ 528 0272 662D      		mov r22,r6
+ 529 0274 0E94 0000 		call __udivmodqi4
+ 530 0278 805D      		subi r24,lo8(-(48))
+ 531 027a 0E94 0000 		call uart_send_byte
+ 532               	.LVL46:
+ 278:../drivers/neo7m.c ****         uart_send_byte('|');
+ 533               		.loc 1 278 0
+ 534 027e 8091 0000 		lds r24,year
+ 535 0282 662D      		mov r22,r6
+ 536 0284 0E94 0000 		call __udivmodqi4
+ 537 0288 80E3      		ldi r24,lo8(48)
+ 538 028a 890F      		add r24,r25
+ 539 028c 0E94 0000 		call uart_send_byte
+ 540               	.LVL47:
+ 279:../drivers/neo7m.c **** 
+ 541               		.loc 1 279 0
+ 542 0290 8CE7      		ldi r24,lo8(124)
+ 543 0292 0E94 0000 		call uart_send_byte
+ 544               	.LVL48:
+ 545               	.LBB97:
+ 546               	.LBB81:
+ 547               	.LBB77:
+ 548               	.LBB78:
+  59:../drivers/neo7m.c ****     uint8_t date = date_bcd_h * 10 + date_bcd_l;
+ 549               		.loc 1 59 0
+ 550 0296 4091 0000 		lds r20,month_bcd_h
+ 551 029a 9091 0000 		lds r25,month_bcd_l
+ 552 029e 392F      		mov r19,r25
+ 553 02a0 50E1      		ldi r21,lo8(16)
+ 554 02a2 459F      		mul r20,r21
+ 555 02a4 300D      		add r19,r0
+ 556 02a6 1124      		clr __zero_reg__
+ 557               	.LVL49:
+  60:../drivers/neo7m.c ****     uint8_t hour_bcd = (hour_bcd_h << 4) + hour_bcd_l;
+ 558               		.loc 1 60 0
+ 559 02a8 A091 0000 		lds r26,date_bcd_h
+ 560 02ac F091 0000 		lds r31,date_bcd_l
+ 561 02b0 2F2F      		mov r18,r31
+ 562 02b2 6AE0      		ldi r22,lo8(10)
+ 563 02b4 A69F      		mul r26,r22
+ 564 02b6 200D      		add r18,r0
+ 565 02b8 1124      		clr __zero_reg__
+ 566               	.LVL50:
+  61:../drivers/neo7m.c ****     if (month_bcd < 0x03 || month_bcd > 0x10) // it is Winter
+ 567               		.loc 1 61 0
+ 568 02ba 5091 0000 		lds r21,hour_bcd_h
+ 569 02be 8091 0000 		lds r24,hour_bcd_l
+ 570 02c2 E82F      		mov r30,r24
+ 571 02c4 60E1      		ldi r22,lo8(16)
+ 572 02c6 569F      		mul r21,r22
+ 573 02c8 E00D      		add r30,r0
+ 574 02ca 1124      		clr __zero_reg__
+ 575               	.LVL51:
+  62:../drivers/neo7m.c ****     {
+ 576               		.loc 1 62 0
+ 577 02cc 6DEF      		ldi r22,lo8(-3)
+ 578 02ce 630F      		add r22,r19
+ 579 02d0 6E30      		cpi r22,lo8(14)
+ 580 02d2 00F4      		brsh .L16
+  66:../drivers/neo7m.c ****     {
+ 581               		.loc 1 66 0
+ 582 02d4 6CEF      		ldi r22,lo8(-4)
+ 583 02d6 630F      		add r22,r19
+ 584 02d8 6C30      		cpi r22,lo8(12)
+ 585 02da 00F0      		brlo .L34
+  70:../drivers/neo7m.c ****     {
+ 586               		.loc 1 70 0
+ 587 02dc 3330      		cpi r19,lo8(3)
+ 588 02de 01F4      		brne .L17
+  72:../drivers/neo7m.c ****         {
+ 589               		.loc 1 72 0
+ 590 02e0 B091 0000 		lds r27,dow
+ 591 02e4 6B2F      		mov r22,r27
+ 592 02e6 70E0      		ldi r23,0
+ 593 02e8 695E      		subi r22,-23
+ 594 02ea 7F4F      		sbci r23,-1
+ 595 02ec 30E0      		ldi r19,0
+ 596               	.LVL52:
+ 597 02ee 6217      		cp r22,r18
+ 598 02f0 7307      		cpc r23,r19
+ 599 02f2 04F4      		brge .L16
+  82:../drivers/neo7m.c ****         }
+ 600               		.loc 1 82 0
+ 601 02f4 11E0      		ldi r17,lo8(1)
+  76:../drivers/neo7m.c ****         {
+ 602               		.loc 1 76 0
+ 603 02f6 B130      		cpi r27,lo8(1)
+ 604 02f8 01F4      		brne .L16
+  82:../drivers/neo7m.c ****         }
+ 605               		.loc 1 82 0
+ 606 02fa E111      		cpse r30,__zero_reg__
+ 607 02fc 00C0      		rjmp .L16
+ 608 02fe 00C0      		rjmp .L39
+ 609               	.LVL53:
+ 610               	.L17:
+  85:../drivers/neo7m.c ****     {
+ 611               		.loc 1 85 0
+ 612 0300 3031      		cpi r19,lo8(16)
+ 613 0302 01F4      		brne .L16
+  87:../drivers/neo7m.c ****         {
+ 614               		.loc 1 87 0
+ 615 0304 B091 0000 		lds r27,dow
+ 616 0308 6B2F      		mov r22,r27
+ 617 030a 70E0      		ldi r23,0
+ 618 030c 695E      		subi r22,-23
+ 619 030e 7F4F      		sbci r23,-1
+ 620 0310 30E0      		ldi r19,0
+ 621               	.LVL54:
+ 622 0312 6217      		cp r22,r18
+ 623 0314 7307      		cpc r23,r19
+ 624 0316 04F4      		brge .L34
+  91:../drivers/neo7m.c ****         {
+ 625               		.loc 1 91 0
+ 626 0318 B130      		cpi r27,lo8(1)
+ 627 031a 01F4      		brne .L16
+  82:../drivers/neo7m.c ****         }
+ 628               		.loc 1 82 0
+ 629 031c 11E0      		ldi r17,lo8(1)
+ 630 031e E230      		cpi r30,lo8(2)
+ 631 0320 00F0      		brlo .L16
+ 632               	.L39:
+ 633 0322 10E0      		ldi r17,0
+ 634 0324 00C0      		rjmp .L16
+ 635               	.L34:
+ 636 0326 11E0      		ldi r17,lo8(1)
+ 637               	.L16:
+ 638               	.LVL55:
+ 639 0328 8E5F      		subi r24,lo8(-(2))
+ 640               	.LVL56:
+ 641               	.LBE78:
+ 642               	.LBE77:
+ 643               	.LBB79:
+ 644               	.LBB76:
+  47:../drivers/neo7m.c ****     {
+ 645               		.loc 1 47 0
+ 646 032a 2091 0000 		lds r18,year
+ 647 032e 322F      		mov r19,r18
+ 648 0330 3370      		andi r19,lo8(3)
+ 649 0332 01F4      		brne .L20
+ 650 0334 2111      		cpse r18,__zero_reg__
+ 651 0336 00C0      		rjmp .L21
+ 652               	.L20:
+  49:../drivers/neo7m.c ****     }
+ 653               		.loc 1 49 0
+ 654 0338 4092 0000 		sts days_in_month+2,r4
+ 655 033c 00C0      		rjmp .L22
+ 656               	.L21:
+  53:../drivers/neo7m.c ****     }
+ 657               		.loc 1 53 0
+ 658 033e 5092 0000 		sts days_in_month+2,r5
+ 659               	.L22:
+ 660               	.LBE76:
+ 661               	.LBE79:
+ 108:../drivers/neo7m.c ****     if (hour_bcd_l >= 10)
+ 662               		.loc 1 108 0
+ 663 0342 810F      		add r24,r17
+ 664 0344 8093 0000 		sts hour_bcd_l,r24
+ 109:../drivers/neo7m.c ****     {
+ 665               		.loc 1 109 0
+ 666 0348 8A30      		cpi r24,lo8(10)
+ 667 034a 00F0      		brlo .L23
+ 111:../drivers/neo7m.c ****         hour_bcd_h++;
+ 668               		.loc 1 111 0
+ 669 034c 8A50      		subi r24,lo8(-(-10))
+ 670 034e 8093 0000 		sts hour_bcd_l,r24
+ 112:../drivers/neo7m.c ****     }
+ 671               		.loc 1 112 0
+ 672 0352 5F5F      		subi r21,lo8(-(1))
+ 673 0354 5093 0000 		sts hour_bcd_h,r21
+ 674               	.L23:
+ 114:../drivers/neo7m.c ****     {
+ 675               		.loc 1 114 0
+ 676 0358 8091 0000 		lds r24,hour_bcd_h
+ 677 035c 8230      		cpi r24,lo8(2)
+ 678 035e 01F0      		breq .+2
+ 679 0360 00C0      		rjmp .L25
+ 680 0362 8091 0000 		lds r24,hour_bcd_l
+ 681 0366 8430      		cpi r24,lo8(4)
+ 682 0368 01F0      		breq .+2
+ 683 036a 00C0      		rjmp .L25
+ 116:../drivers/neo7m.c ****         hour_bcd_h = 0;
+ 684               		.loc 1 116 0
+ 685 036c 1092 0000 		sts hour_bcd_l,__zero_reg__
+ 117:../drivers/neo7m.c ****         date_bcd_l++;
+ 686               		.loc 1 117 0
+ 687 0370 1092 0000 		sts hour_bcd_h,__zero_reg__
+ 118:../drivers/neo7m.c ****         if (date_bcd_l == 10)
+ 688               		.loc 1 118 0
+ 689 0374 FF5F      		subi r31,lo8(-(1))
+ 690 0376 F093 0000 		sts date_bcd_l,r31
+ 119:../drivers/neo7m.c ****         {
+ 691               		.loc 1 119 0
+ 692 037a FA30      		cpi r31,lo8(10)
+ 693 037c 01F4      		brne .L27
+ 121:../drivers/neo7m.c ****             date_bcd_h++;
+ 694               		.loc 1 121 0
+ 695 037e 1092 0000 		sts date_bcd_l,__zero_reg__
+ 122:../drivers/neo7m.c ****         }
+ 696               		.loc 1 122 0
+ 697 0382 AF5F      		subi r26,lo8(-(1))
+ 698 0384 A093 0000 		sts date_bcd_h,r26
+ 699               	.L27:
+ 124:../drivers/neo7m.c ****         {
+ 700               		.loc 1 124 0
+ 701 0388 8091 0000 		lds r24,date_bcd_h
+ 702 038c 6091 0000 		lds r22,date_bcd_l
+ 703 0390 70E0      		ldi r23,0
+ 704 0392 30E1      		ldi r19,lo8(16)
+ 705 0394 839F      		mul r24,r19
+ 706 0396 600D      		add r22,r0
+ 707 0398 711D      		adc r23,r1
+ 708 039a 1124      		clr __zero_reg__
+ 709 039c 50E1      		ldi r21,lo8(16)
+ 710 039e 459F      		mul r20,r21
+ 711 03a0 F001      		movw r30,r0
+ 712 03a2 1124      		clr __zero_reg__
+ 713 03a4 E050      		subi r30,lo8(-(days_in_month))
+ 714 03a6 F040      		sbci r31,hi8(-(days_in_month))
+ 715 03a8 E90F      		add r30,r25
+ 716 03aa F11D      		adc r31,__zero_reg__
+ 717 03ac E081      		ld r30,Z
+ 718 03ae F0E0      		ldi r31,0
+ 719 03b0 6E17      		cp r22,r30
+ 720 03b2 7F07      		cpc r23,r31
+ 721 03b4 01F4      		brne .L25
+ 126:../drivers/neo7m.c ****             date_bcd_h = 0;
+ 722               		.loc 1 126 0
+ 723 03b6 2092 0000 		sts date_bcd_l,r2
+ 127:../drivers/neo7m.c ****             month_bcd_l++;
+ 724               		.loc 1 127 0
+ 725 03ba 1092 0000 		sts date_bcd_h,__zero_reg__
+ 128:../drivers/neo7m.c ****             if (month_bcd_l == 10)
+ 726               		.loc 1 128 0
+ 727 03be 9F5F      		subi r25,lo8(-(1))
+ 728 03c0 9093 0000 		sts month_bcd_l,r25
+ 129:../drivers/neo7m.c ****             {
+ 729               		.loc 1 129 0
+ 730 03c4 9A30      		cpi r25,lo8(10)
+ 731 03c6 01F4      		brne .L28
+ 131:../drivers/neo7m.c ****                 month_bcd_h++;
+ 732               		.loc 1 131 0
+ 733 03c8 1092 0000 		sts month_bcd_l,__zero_reg__
+ 132:../drivers/neo7m.c ****             }
+ 734               		.loc 1 132 0
+ 735 03cc 4F5F      		subi r20,lo8(-(1))
+ 736 03ce 4093 0000 		sts month_bcd_h,r20
+ 737               	.L28:
+ 134:../drivers/neo7m.c ****             {
+ 738               		.loc 1 134 0
+ 739 03d2 8091 0000 		lds r24,month_bcd_h
+ 740 03d6 8130      		cpi r24,lo8(1)
+ 741 03d8 01F4      		brne .L25
+ 742 03da 9091 0000 		lds r25,month_bcd_l
+ 743 03de 9330      		cpi r25,lo8(3)
+ 744 03e0 01F4      		brne .L25
+ 136:../drivers/neo7m.c ****                 month_bcd_h = 0;
+ 745               		.loc 1 136 0
+ 746 03e2 8093 0000 		sts month_bcd_l,r24
+ 137:../drivers/neo7m.c ****                 year++;
+ 747               		.loc 1 137 0
+ 748 03e6 1092 0000 		sts month_bcd_h,__zero_reg__
+ 138:../drivers/neo7m.c ****             }
+ 749               		.loc 1 138 0
+ 750 03ea 2F5F      		subi r18,lo8(-(1))
+ 751 03ec 2093 0000 		sts year,r18
+ 752               	.L25:
+ 753               	.LVL57:
+ 754               	.LBB80:
+ 755               	.LBB73:
+  36:../drivers/neo7m.c ****     int8_t _date = date_bcd_h * 10 + date_bcd_l;
+ 756               		.loc 1 36 0
+ 757 03f0 8091 0000 		lds r24,month_bcd_h
+ 758 03f4 4091 0000 		lds r20,month_bcd_l
+ 759 03f8 6AE0      		ldi r22,lo8(10)
+ 760 03fa 869F      		mul r24,r22
+ 761 03fc 400D      		add r20,r0
+ 762 03fe 1124      		clr __zero_reg__
+ 763               	.LVL58:
+  39:../drivers/neo7m.c ****     int16_t y = _year - a;
+ 764               		.loc 1 39 0
+ 765 0400 81E0      		ldi r24,lo8(1)
+ 766 0402 4330      		cpi r20,lo8(3)
+ 767 0404 04F0      		brlt .L29
+ 768 0406 80E0      		ldi r24,0
+ 769               	.L29:
+ 770               	.LVL59:
+  40:../drivers/neo7m.c ****     int8_t m = _month + 12 * a - 2;
+ 771               		.loc 1 40 0
+ 772 0408 2091 0000 		lds r18,year
+ 773 040c 30E0      		ldi r19,0
+ 774 040e 2053      		subi r18,48
+ 775 0410 384F      		sbci r19,-8
+ 776 0412 281B      		sub r18,r24
+ 777 0414 3109      		sbc r19,__zero_reg__
+ 778               	.LVL60:
+  41:../drivers/neo7m.c ****     dow = (7000 + (_date + y + y / 4 - y / 100 + y / 400 + (31 * m) / 12)) % 7 + 1;
+ 779               		.loc 1 41 0
+ 780 0416 4250      		subi r20,lo8(-(-2))
+ 781               	.LVL61:
+ 782 0418 839D      		mul r24,r3
+ 783 041a 400D      		add r20,r0
+ 784 041c 1124      		clr __zero_reg__
+ 785               	.LVL62:
+  42:../drivers/neo7m.c **** }
+ 786               		.loc 1 42 0
+ 787 041e 9091 0000 		lds r25,date_bcd_h
+ 788 0422 8091 0000 		lds r24,date_bcd_l
+ 789               	.LVL63:
+ 790 0426 5AE0      		ldi r21,lo8(10)
+ 791 0428 959F      		mul r25,r21
+ 792 042a 800D      		add r24,r0
+ 793 042c 1124      		clr __zero_reg__
+ 794 042e F901      		movw r30,r18
+ 795 0430 E80F      		add r30,r24
+ 796 0432 F11D      		adc r31,__zero_reg__
+ 797 0434 87FD      		sbrc r24,7
+ 798 0436 FA95      		dec r31
+ 799 0438 C901      		movw r24,r18
+ 800 043a 9595      		asr r25
+ 801 043c 8795      		ror r24
+ 802 043e 9595      		asr r25
+ 803 0440 8795      		ror r24
+ 804 0442 E80F      		add r30,r24
+ 805 0444 F91F      		adc r31,r25
+ 806 0446 C901      		movw r24,r18
+ 807 0448 B701      		movw r22,r14
+ 808 044a 0E94 0000 		call __divmodhi4
+ 809 044e E60F      		add r30,r22
+ 810 0450 F71F      		adc r31,r23
+ 811 0452 C901      		movw r24,r18
+ 812 0454 B601      		movw r22,r12
+ 813 0456 0E94 0000 		call __divmodhi4
+ 814 045a E60F      		add r30,r22
+ 815 045c F71F      		adc r31,r23
+ 816 045e 6FE1      		ldi r22,lo8(31)
+ 817 0460 4602      		muls r20,r22
+ 818 0462 C001      		movw r24,r0
+ 819 0464 1124      		clr __zero_reg__
+ 820 0466 B501      		movw r22,r10
+ 821 0468 0E94 0000 		call __divmodhi4
+ 822 046c CF01      		movw r24,r30
+ 823 046e 860F      		add r24,r22
+ 824 0470 971F      		adc r25,r23
+ 825 0472 885A      		subi r24,-88
+ 826 0474 944E      		sbci r25,-28
+ 827 0476 B401      		movw r22,r8
+ 828 0478 0E94 0000 		call __divmodhi4
+ 829 047c 8F5F      		subi r24,lo8(-(1))
+ 830 047e 8093 0000 		sts dow,r24
+ 831               	.LVL64:
+ 832               	.LBE73:
+ 833               	.LBE80:
+ 834               	.LBE81:
+ 835               	.LBE97:
+ 282:../drivers/neo7m.c ****         {
+ 836               		.loc 1 282 0
+ 837 0482 E091 0000 		lds r30,_time_cb
+ 838 0486 F091 0000 		lds r31,_time_cb+1
+ 839 048a 3097      		sbiw r30,0
+ 840 048c 01F4      		brne .+2
+ 841 048e 00C0      		rjmp .L10
+ 284:../drivers/neo7m.c ****         }
+ 842               		.loc 1 284 0
+ 843 0490 0995      		icall
+ 844               	.LVL65:
+ 845 0492 00C0      		rjmp .L10
+ 846               	.LVL66:
+ 847               	.L13:
+ 848               	.LBE98:
+ 849               	.LBE99:
+ 850               	.LBE100:
+ 311:../drivers/neo7m.c ****                 {
+ 312:../drivers/neo7m.c ****                     _packet_parser();
+ 313:../drivers/neo7m.c ****                 }
+ 314:../drivers/neo7m.c ****             }
+ 315:../drivers/neo7m.c ****             else
+ 316:../drivers/neo7m.c ****             {
+ 317:../drivers/neo7m.c ****                 _buf[_index++] = tmp;
+ 851               		.loc 1 317 0
+ 852 0494 91E0      		ldi r25,lo8(1)
+ 853 0496 9E0F      		add r25,r30
+ 854 0498 9093 0000 		sts _index,r25
+ 855 049c F0E0      		ldi r31,0
+ 856 049e E050      		subi r30,lo8(-(_buf))
+ 857 04a0 F040      		sbci r31,hi8(-(_buf))
+ 858 04a2 8083      		st Z,r24
+ 859 04a4 00C0      		rjmp .L10
+ 860               	.LVL67:
+ 861               	.L40:
+ 862               	/* epilogue start */
+ 863               	.LBE101:
+ 318:../drivers/neo7m.c ****             }
+ 319:../drivers/neo7m.c ****         }
+ 320:../drivers/neo7m.c ****     }
+ 321:../drivers/neo7m.c **** }
+ 864               		.loc 1 321 0
+ 865 04a6 0F90      		pop __tmp_reg__
+ 866 04a8 0F90      		pop __tmp_reg__
+ 867 04aa DF91      		pop r29
+ 868 04ac CF91      		pop r28
+ 869 04ae 1F91      		pop r17
+ 870 04b0 FF90      		pop r15
+ 871 04b2 EF90      		pop r14
+ 872 04b4 DF90      		pop r13
+ 873 04b6 CF90      		pop r12
+ 874 04b8 BF90      		pop r11
+ 875 04ba AF90      		pop r10
+ 876 04bc 9F90      		pop r9
+ 877 04be 8F90      		pop r8
+ 878 04c0 6F90      		pop r6
+ 879 04c2 5F90      		pop r5
+ 880 04c4 4F90      		pop r4
+ 881 04c6 3F90      		pop r3
+ 882 04c8 2F90      		pop r2
+ 883 04ca 0895      		ret
+ 884               		.cfi_endproc
+ 885               	.LFE13:
+ 887               	.global	get_second_bcd_l
+ 889               	get_second_bcd_l:
+ 890               	.LFB14:
+ 322:../drivers/neo7m.c **** 
+ 323:../drivers/neo7m.c **** uint8_t get_second_bcd_l(void)
+ 324:../drivers/neo7m.c **** {
+ 891               		.loc 1 324 0
+ 892               		.cfi_startproc
+ 893               	/* prologue: function */
+ 894               	/* frame size = 0 */
+ 895               	/* stack size = 0 */
+ 896               	.L__stack_usage = 0
+ 325:../drivers/neo7m.c ****     return second_bcd_l;
+ 326:../drivers/neo7m.c **** }
+ 897               		.loc 1 326 0
+ 898 04cc 8091 0000 		lds r24,second_bcd_l
+ 899 04d0 0895      		ret
+ 900               		.cfi_endproc
+ 901               	.LFE14:
+ 903               	.global	get_second_bcd_h
+ 905               	get_second_bcd_h:
+ 906               	.LFB15:
+ 327:../drivers/neo7m.c **** 
+ 328:../drivers/neo7m.c **** uint8_t get_second_bcd_h(void)
+ 329:../drivers/neo7m.c **** {
+ 907               		.loc 1 329 0
+ 908               		.cfi_startproc
+ 909               	/* prologue: function */
+ 910               	/* frame size = 0 */
+ 911               	/* stack size = 0 */
+ 912               	.L__stack_usage = 0
+ 330:../drivers/neo7m.c ****     return second_bcd_h;
+ 331:../drivers/neo7m.c **** }
+ 913               		.loc 1 331 0
+ 914 04d2 8091 0000 		lds r24,second_bcd_h
+ 915 04d6 0895      		ret
+ 916               		.cfi_endproc
+ 917               	.LFE15:
+ 919               	.global	get_minute_bcd_l
+ 921               	get_minute_bcd_l:
+ 922               	.LFB16:
+ 332:../drivers/neo7m.c **** 
+ 333:../drivers/neo7m.c **** uint8_t get_minute_bcd_l(void)
+ 334:../drivers/neo7m.c **** {
+ 923               		.loc 1 334 0
+ 924               		.cfi_startproc
+ 925               	/* prologue: function */
+ 926               	/* frame size = 0 */
+ 927               	/* stack size = 0 */
+ 928               	.L__stack_usage = 0
+ 335:../drivers/neo7m.c ****     return minute_bcd_l;
+ 336:../drivers/neo7m.c **** }
+ 929               		.loc 1 336 0
+ 930 04d8 8091 0000 		lds r24,minute_bcd_l
+ 931 04dc 0895      		ret
+ 932               		.cfi_endproc
+ 933               	.LFE16:
+ 935               	.global	get_minute_bcd_h
+ 937               	get_minute_bcd_h:
+ 938               	.LFB17:
+ 337:../drivers/neo7m.c **** 
+ 338:../drivers/neo7m.c **** uint8_t get_minute_bcd_h(void)
+ 339:../drivers/neo7m.c **** {
+ 939               		.loc 1 339 0
+ 940               		.cfi_startproc
+ 941               	/* prologue: function */
+ 942               	/* frame size = 0 */
+ 943               	/* stack size = 0 */
+ 944               	.L__stack_usage = 0
+ 340:../drivers/neo7m.c ****     return minute_bcd_h;
+ 341:../drivers/neo7m.c **** }
+ 945               		.loc 1 341 0
+ 946 04de 8091 0000 		lds r24,minute_bcd_h
+ 947 04e2 0895      		ret
+ 948               		.cfi_endproc
+ 949               	.LFE17:
+ 951               	.global	get_hour_bcd_l
+ 953               	get_hour_bcd_l:
+ 954               	.LFB18:
+ 342:../drivers/neo7m.c **** 
+ 343:../drivers/neo7m.c **** uint8_t get_hour_bcd_l(void)
+ 344:../drivers/neo7m.c **** {
+ 955               		.loc 1 344 0
+ 956               		.cfi_startproc
+ 957               	/* prologue: function */
+ 958               	/* frame size = 0 */
+ 959               	/* stack size = 0 */
+ 960               	.L__stack_usage = 0
+ 345:../drivers/neo7m.c ****     return hour_bcd_l;
+ 346:../drivers/neo7m.c **** }
+ 961               		.loc 1 346 0
+ 962 04e4 8091 0000 		lds r24,hour_bcd_l
+ 963 04e8 0895      		ret
+ 964               		.cfi_endproc
+ 965               	.LFE18:
+ 967               	.global	get_hour_bcd_h
+ 969               	get_hour_bcd_h:
+ 970               	.LFB19:
+ 347:../drivers/neo7m.c **** 
+ 348:../drivers/neo7m.c **** uint8_t get_hour_bcd_h(void)
+ 349:../drivers/neo7m.c **** {
+ 971               		.loc 1 349 0
+ 972               		.cfi_startproc
+ 973               	/* prologue: function */
+ 974               	/* frame size = 0 */
+ 975               	/* stack size = 0 */
+ 976               	.L__stack_usage = 0
+ 350:../drivers/neo7m.c ****     return hour_bcd_h;
+ 351:../drivers/neo7m.c **** }
+ 977               		.loc 1 351 0
+ 978 04ea 8091 0000 		lds r24,hour_bcd_h
+ 979 04ee 0895      		ret
+ 980               		.cfi_endproc
+ 981               	.LFE19:
+ 983               	.global	get_dow
+ 985               	get_dow:
+ 986               	.LFB20:
+ 352:../drivers/neo7m.c **** 
+ 353:../drivers/neo7m.c **** uint8_t get_dow(void)
+ 354:../drivers/neo7m.c **** {
+ 987               		.loc 1 354 0
+ 988               		.cfi_startproc
+ 989               	/* prologue: function */
+ 990               	/* frame size = 0 */
+ 991               	/* stack size = 0 */
+ 992               	.L__stack_usage = 0
+ 355:../drivers/neo7m.c ****     return dow;
+ 356:../drivers/neo7m.c **** }
+ 993               		.loc 1 356 0
+ 994 04f0 8091 0000 		lds r24,dow
+ 995 04f4 0895      		ret
+ 996               		.cfi_endproc
+ 997               	.LFE20:
+ 999               	.global	get_date_bcd_l
+ 1001               	get_date_bcd_l:
+ 1002               	.LFB21:
+ 357:../drivers/neo7m.c **** 
+ 358:../drivers/neo7m.c **** uint8_t get_date_bcd_l(void)
+ 359:../drivers/neo7m.c **** {
+ 1003               		.loc 1 359 0
+ 1004               		.cfi_startproc
+ 1005               	/* prologue: function */
+ 1006               	/* frame size = 0 */
+ 1007               	/* stack size = 0 */
+ 1008               	.L__stack_usage = 0
+ 360:../drivers/neo7m.c ****     return date_bcd_l;
+ 361:../drivers/neo7m.c **** }
+ 1009               		.loc 1 361 0
+ 1010 04f6 8091 0000 		lds r24,date_bcd_l
+ 1011 04fa 0895      		ret
+ 1012               		.cfi_endproc
+ 1013               	.LFE21:
+ 1015               	.global	get_date_bcd_h
+ 1017               	get_date_bcd_h:
+ 1018               	.LFB22:
+ 362:../drivers/neo7m.c **** 
+ 363:../drivers/neo7m.c **** uint8_t get_date_bcd_h(void)
+ 364:../drivers/neo7m.c **** {
+ 1019               		.loc 1 364 0
+ 1020               		.cfi_startproc
+ 1021               	/* prologue: function */
+ 1022               	/* frame size = 0 */
+ 1023               	/* stack size = 0 */
+ 1024               	.L__stack_usage = 0
+ 365:../drivers/neo7m.c ****     return date_bcd_h;
+ 366:../drivers/neo7m.c **** }
+ 1025               		.loc 1 366 0
+ 1026 04fc 8091 0000 		lds r24,date_bcd_h
+ 1027 0500 0895      		ret
+ 1028               		.cfi_endproc
+ 1029               	.LFE22:
+ 1031               	.global	get_month
+ 1033               	get_month:
+ 1034               	.LFB23:
+ 367:../drivers/neo7m.c **** 
+ 368:../drivers/neo7m.c **** uint8_t get_month(void)
+ 369:../drivers/neo7m.c **** {
+ 1035               		.loc 1 369 0
+ 1036               		.cfi_startproc
+ 1037               	/* prologue: function */
+ 1038               	/* frame size = 0 */
+ 1039               	/* stack size = 0 */
+ 1040               	.L__stack_usage = 0
+ 370:../drivers/neo7m.c ****     return month_bcd_h * 10 + month_bcd_l;
+ 1041               		.loc 1 370 0
+ 1042 0502 9091 0000 		lds r25,month_bcd_h
+ 1043 0506 8091 0000 		lds r24,month_bcd_l
+ 371:../drivers/neo7m.c **** }
+ 1044               		.loc 1 371 0
+ 1045 050a 2AE0      		ldi r18,lo8(10)
+ 1046 050c 929F      		mul r25,r18
+ 1047 050e 800D      		add r24,r0
+ 1048 0510 1124      		clr __zero_reg__
+ 1049 0512 0895      		ret
+ 1050               		.cfi_endproc
+ 1051               	.LFE23:
+ 1053               	.global	get_year
+ 1055               	get_year:
+ 1056               	.LFB24:
+ 372:../drivers/neo7m.c **** 
+ 373:../drivers/neo7m.c **** uint8_t get_year(void)
+ 374:../drivers/neo7m.c **** {
+ 1057               		.loc 1 374 0
+ 1058               		.cfi_startproc
+ 1059               	/* prologue: function */
+ 1060               	/* frame size = 0 */
+ 1061               	/* stack size = 0 */
+ 1062               	.L__stack_usage = 0
+ 375:../drivers/neo7m.c ****     return year;
+ 376:../drivers/neo7m.c **** }
+ 1063               		.loc 1 376 0
+ 1064 0514 8091 0000 		lds r24,year
+ 1065 0518 0895      		ret
+ 1066               		.cfi_endproc
+ 1067               	.LFE24:
+ 1069               		.comm	year_full,2,1
+ 1070               		.comm	year,1,1
+ 1071               		.comm	month_bcd_h,1,1
+ 1072               		.comm	month_bcd_l,1,1
+ 1073               		.comm	date_bcd_h,1,1
+ 1074               		.comm	date_bcd_l,1,1
+ 1075               		.comm	dow,1,1
+ 1076               		.comm	hour_bcd_h,1,1
+ 1077               		.comm	hour_bcd_l,1,1
+ 1078               		.comm	minute_bcd_h,1,1
+ 1079               		.comm	minute_bcd_l,1,1
+ 1080               		.comm	second_bcd_h,1,1
+ 1081               		.comm	second_bcd_l,1,1
+ 1082               		.data
+ 1085               	days_in_month:
+ 1086 0000 00        		.byte	0
+ 1087 0001 32        		.byte	50
+ 1088 0002 29        		.byte	41
+ 1089 0003 32        		.byte	50
+ 1090 0004 31        		.byte	49
+ 1091 0005 32        		.byte	50
+ 1092 0006 31        		.byte	49
+ 1093 0007 32        		.byte	50
+ 1094 0008 32        		.byte	50
+ 1095 0009 31        		.byte	49
+ 1096 000a 32        		.byte	50
+ 1097 000b 31        		.byte	49
+ 1098 000c 32        		.byte	50
+ 1099               		.local	_time_cb
+ 1100               		.comm	_time_cb,2,1
+ 1101               		.local	_index
+ 1102               		.comm	_index,1,1
+ 1103               		.local	_buf
+ 1104               		.comm	_buf,64,1
+ 1105               		.text
+ 1106               	.Letext0:
+ 1107               		.file 2 "/usr/lib/avr/include/stdint.h"
+ 1108               		.file 3 "../drivers/neo7m.h"
+ 1109               		.file 4 "../drivers/UART.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 neo7m.c
+     /tmp/ccQV4amb.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/ccQV4amb.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/ccQV4amb.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/ccQV4amb.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/ccQV4amb.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/ccQV4amb.s:11     .text:0000000000000000 _goto_next_field
+     /tmp/ccQV4amb.s:1100   .bss:0000000000000002 _index
+     /tmp/ccQV4amb.s:1102   .bss:0000000000000003 _buf
+     /tmp/ccQV4amb.s:60     .text:0000000000000030 neo7m_init
+                             .bss:0000000000000000 _time_cb
+     /tmp/ccQV4amb.s:80     .text:000000000000003c neo7m_handler
+                            *COM*:0000000000000001 hour_bcd_h
+                            *COM*:0000000000000001 hour_bcd_l
+                            *COM*:0000000000000001 minute_bcd_h
+                            *COM*:0000000000000001 minute_bcd_l
+                            *COM*:0000000000000001 second_bcd_h
+                            *COM*:0000000000000001 second_bcd_l
+                            *COM*:0000000000000001 date_bcd_h
+                            *COM*:0000000000000001 date_bcd_l
+                            *COM*:0000000000000001 month_bcd_h
+                            *COM*:0000000000000001 month_bcd_l
+                            *COM*:0000000000000001 year
+                            *COM*:0000000000000001 dow
+     /tmp/ccQV4amb.s:1085   .data:0000000000000000 days_in_month
+     /tmp/ccQV4amb.s:889    .text:00000000000004cc get_second_bcd_l
+     /tmp/ccQV4amb.s:905    .text:00000000000004d2 get_second_bcd_h
+     /tmp/ccQV4amb.s:921    .text:00000000000004d8 get_minute_bcd_l
+     /tmp/ccQV4amb.s:937    .text:00000000000004de get_minute_bcd_h
+     /tmp/ccQV4amb.s:953    .text:00000000000004e4 get_hour_bcd_l
+     /tmp/ccQV4amb.s:969    .text:00000000000004ea get_hour_bcd_h
+     /tmp/ccQV4amb.s:985    .text:00000000000004f0 get_dow
+     /tmp/ccQV4amb.s:1001   .text:00000000000004f6 get_date_bcd_l
+     /tmp/ccQV4amb.s:1017   .text:00000000000004fc get_date_bcd_h
+     /tmp/ccQV4amb.s:1033   .text:0000000000000502 get_month
+     /tmp/ccQV4amb.s:1055   .text:0000000000000514 get_year
+                            *COM*:0000000000000002 year_full
+
+UNDEFINED SYMBOLS
+uart_init
+uart_check_receiver
+uart_get_byte
+uart_send_byte
+__udivmodqi4
+__divmodhi4
+__do_copy_data
+__do_clear_bss

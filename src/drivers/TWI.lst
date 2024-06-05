@@ -1,0 +1,663 @@
+   1               		.file	"TWI.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	__vector_24
+  12               	__vector_24:
+  13               	.LFB3:
+  14               		.file 1 "../drivers/TWI.c"
+   1:../drivers/TWI.c **** #include <avr/io.h>
+   2:../drivers/TWI.c **** #include <avr/interrupt.h>
+   3:../drivers/TWI.c **** #include "TWI.h"
+   4:../drivers/TWI.c **** 
+   5:../drivers/TWI.c **** // TWI state and address variables
+   6:../drivers/TWI.c **** #define TW_START 0x08
+   7:../drivers/TWI.c **** #define TW_REP_START 0x10
+   8:../drivers/TWI.c **** #define TW_MT_SLA_ACK 0x18
+   9:../drivers/TWI.c **** #define TW_MT_SLA_NACK 0x20
+  10:../drivers/TWI.c **** #define TW_MT_DATA_ACK 0x28
+  11:../drivers/TWI.c **** #define TW_MT_DATA_NACK 0x30
+  12:../drivers/TWI.c **** #define TW_MR_SLA_ACK 0x40
+  13:../drivers/TWI.c **** #define TW_MR_SLA_NACK 0x48
+  14:../drivers/TWI.c **** #define TW_MR_DATA_ACK 0x50
+  15:../drivers/TWI.c **** #define TW_MR_DATA_NACK 0x58
+  16:../drivers/TWI.c **** 
+  17:../drivers/TWI.c **** #define TWCR_CMD_MASK 0x0F
+  18:../drivers/TWI.c **** #define TWSR_STATUS_MASK 0xF8
+  19:../drivers/TWI.c **** 
+  20:../drivers/TWI.c **** typedef enum {
+  21:../drivers/TWI.c ****     TWI_IDLE = 0,
+  22:../drivers/TWI.c ****     TWI_MASTER_TX = 1,
+  23:../drivers/TWI.c ****     TWI_MASTER_RX = 2
+  24:../drivers/TWI.c **** } twi_state_t;
+  25:../drivers/TWI.c **** 
+  26:../drivers/TWI.c **** typedef struct {
+  27:../drivers/TWI.c ****     uint8_t dev_addr;
+  28:../drivers/TWI.c ****     uint8_t tx_len;
+  29:../drivers/TWI.c ****     uint8_t rx_len;
+  30:../drivers/TWI.c ****     uint8_t *tx_buf;
+  31:../drivers/TWI.c ****     uint8_t *rx_buf;
+  32:../drivers/TWI.c ****     uint8_t index;
+  33:../drivers/TWI.c ****     uint8_t state;
+  34:../drivers/TWI.c ****     twi_cb callback;
+  35:../drivers/TWI.c **** } twi_descriptor_t;
+  36:../drivers/TWI.c **** 
+  37:../drivers/TWI.c **** static volatile twi_descriptor_t twi_descriptor;
+  38:../drivers/TWI.c **** 
+  39:../drivers/TWI.c **** inline void twi_send_byte(uint8_t data)
+  40:../drivers/TWI.c **** {
+  41:../drivers/TWI.c ****     TWDR = data;    //Save Data To The TWDR
+  42:../drivers/TWI.c ****     TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT);   //Begin Send
+  43:../drivers/TWI.c **** }
+  44:../drivers/TWI.c **** 
+  45:../drivers/TWI.c **** inline void twi_send_start(void)
+  46:../drivers/TWI.c **** {
+  47:../drivers/TWI.c ****     TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT) | (1 << TWSTA);    //send start condition
+  48:../drivers/TWI.c **** }
+  49:../drivers/TWI.c **** 
+  50:../drivers/TWI.c **** inline void twi_send_stop(void)
+  51:../drivers/TWI.c **** {
+  52:../drivers/TWI.c ****     //Transmit Stop Condition
+  53:../drivers/TWI.c ****     //Leave With TWEA On For Slave Receiving
+  54:../drivers/TWI.c ****     TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT) | (1 << TWEA) | (1 << TWSTO);
+  55:../drivers/TWI.c **** }
+  56:../drivers/TWI.c **** 
+  57:../drivers/TWI.c **** SIGNAL(TWI_vect)
+  58:../drivers/TWI.c **** {
+  15               		.loc 1 58 0
+  16               		.cfi_startproc
+  17 0000 1F92      		push r1
+  18               	.LCFI0:
+  19               		.cfi_def_cfa_offset 3
+  20               		.cfi_offset 1, -2
+  21 0002 0F92      		push r0
+  22               	.LCFI1:
+  23               		.cfi_def_cfa_offset 4
+  24               		.cfi_offset 0, -3
+  25 0004 0FB6      		in r0,__SREG__
+  26 0006 0F92      		push r0
+  27 0008 1124      		clr __zero_reg__
+  28 000a 2F93      		push r18
+  29               	.LCFI2:
+  30               		.cfi_def_cfa_offset 5
+  31               		.cfi_offset 18, -4
+  32 000c 3F93      		push r19
+  33               	.LCFI3:
+  34               		.cfi_def_cfa_offset 6
+  35               		.cfi_offset 19, -5
+  36 000e 4F93      		push r20
+  37               	.LCFI4:
+  38               		.cfi_def_cfa_offset 7
+  39               		.cfi_offset 20, -6
+  40 0010 5F93      		push r21
+  41               	.LCFI5:
+  42               		.cfi_def_cfa_offset 8
+  43               		.cfi_offset 21, -7
+  44 0012 6F93      		push r22
+  45               	.LCFI6:
+  46               		.cfi_def_cfa_offset 9
+  47               		.cfi_offset 22, -8
+  48 0014 7F93      		push r23
+  49               	.LCFI7:
+  50               		.cfi_def_cfa_offset 10
+  51               		.cfi_offset 23, -9
+  52 0016 8F93      		push r24
+  53               	.LCFI8:
+  54               		.cfi_def_cfa_offset 11
+  55               		.cfi_offset 24, -10
+  56 0018 9F93      		push r25
+  57               	.LCFI9:
+  58               		.cfi_def_cfa_offset 12
+  59               		.cfi_offset 25, -11
+  60 001a AF93      		push r26
+  61               	.LCFI10:
+  62               		.cfi_def_cfa_offset 13
+  63               		.cfi_offset 26, -12
+  64 001c BF93      		push r27
+  65               	.LCFI11:
+  66               		.cfi_def_cfa_offset 14
+  67               		.cfi_offset 27, -13
+  68 001e EF93      		push r30
+  69               	.LCFI12:
+  70               		.cfi_def_cfa_offset 15
+  71               		.cfi_offset 30, -14
+  72 0020 FF93      		push r31
+  73               	.LCFI13:
+  74               		.cfi_def_cfa_offset 16
+  75               		.cfi_offset 31, -15
+  76               	/* prologue: Signal */
+  77               	/* frame size = 0 */
+  78               	/* stack size = 15 */
+  79               	.L__stack_usage = 15
+  59:../drivers/TWI.c ****     uint8_t status = TWSR & TWSR_STATUS_MASK;   //Read Status Bits
+  80               		.loc 1 59 0
+  81 0022 8091 B900 		lds r24,185
+  82               	.LVL0:
+  60:../drivers/TWI.c ****     switch(status) {
+  83               		.loc 1 60 0
+  84 0026 887F      		andi r24,lo8(-8)
+  85               	.LVL1:
+  86 0028 8832      		cpi r24,lo8(40)
+  87 002a 01F0      		breq .L3
+  88 002c 00F4      		brsh .L4
+  89 002e 8031      		cpi r24,lo8(16)
+  90 0030 01F0      		breq .L5
+  91 0032 00F4      		brsh .L6
+  92 0034 8830      		cpi r24,lo8(8)
+  93 0036 01F0      		breq .+2
+  94 0038 00C0      		rjmp .L1
+  61:../drivers/TWI.c ****         // Master General
+  62:../drivers/TWI.c ****         case TW_START:  //0x08: Sent Start Condition
+  63:../drivers/TWI.c ****             twi_send_byte(twi_descriptor.dev_addr);  //Send Device Address
+  95               		.loc 1 63 0
+  96 003a 8091 0000 		lds r24,twi_descriptor
+  97               	.LVL2:
+  98 003e 00C0      		rjmp .L43
+  99               	.LVL3:
+ 100               	.L6:
+  60:../drivers/TWI.c ****     switch(status) {
+ 101               		.loc 1 60 0
+ 102 0040 8831      		cpi r24,lo8(24)
+ 103 0042 01F0      		breq .L3
+ 104 0044 8032      		cpi r24,lo8(32)
+ 105 0046 01F4      		brne .+2
+ 106 0048 00C0      		rjmp .L8
+ 107 004a 00C0      		rjmp .L1
+ 108               	.L4:
+ 109 004c 8834      		cpi r24,lo8(72)
+ 110 004e 01F4      		brne .+2
+ 111 0050 00C0      		rjmp .L8
+ 112 0052 00F4      		brsh .L9
+ 113 0054 8033      		cpi r24,lo8(48)
+ 114 0056 01F4      		brne .+2
+ 115 0058 00C0      		rjmp .L8
+ 116 005a 8034      		cpi r24,lo8(64)
+ 117 005c 01F4      		brne .+2
+ 118 005e 00C0      		rjmp .L10
+ 119 0060 00C0      		rjmp .L1
+ 120               	.L9:
+ 121 0062 8035      		cpi r24,lo8(80)
+ 122 0064 01F4      		brne .+2
+ 123 0066 00C0      		rjmp .L11
+ 124 0068 8835      		cpi r24,lo8(88)
+ 125 006a 01F0      		breq .+2
+ 126 006c 00C0      		rjmp .L1
+  64:../drivers/TWI.c ****             break;
+  65:../drivers/TWI.c ****         case TW_REP_START:  //0x10: Sent Repeated Start Condition
+  66:../drivers/TWI.c ****             twi_send_byte(twi_descriptor.dev_addr | 1);   //Send Device Address
+  67:../drivers/TWI.c ****             break;
+  68:../drivers/TWI.c ****         // Master Transmitter & Receiver status codes
+  69:../drivers/TWI.c ****         case TW_MT_SLA_ACK: //0x18: Slave Address Acknowledged
+  70:../drivers/TWI.c ****         case TW_MT_DATA_ACK:    //0x28: Data Acknowledged
+  71:../drivers/TWI.c ****             if(twi_descriptor.state == TWI_MASTER_TX)
+  72:../drivers/TWI.c ****             {
+  73:../drivers/TWI.c ****                 if(twi_descriptor.index < twi_descriptor.tx_len)
+  74:../drivers/TWI.c ****                 {
+  75:../drivers/TWI.c ****                     twi_send_byte(twi_descriptor.tx_buf[twi_descriptor.index++]);
+  76:../drivers/TWI.c ****                 }
+  77:../drivers/TWI.c ****                 else if(twi_descriptor.rx_len > 0)
+  78:../drivers/TWI.c ****                 {
+  79:../drivers/TWI.c ****                     twi_send_start();
+  80:../drivers/TWI.c ****                     twi_descriptor.index = 0;
+  81:../drivers/TWI.c ****                     if (twi_descriptor.rx_len == 1)
+  82:../drivers/TWI.c ****                     {
+  83:../drivers/TWI.c ****                         TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT);   //Data Byte Will Be Receive
+  84:../drivers/TWI.c ****                     }
+  85:../drivers/TWI.c ****                     twi_descriptor.state = TWI_MASTER_RX;
+  86:../drivers/TWI.c ****                 }
+  87:../drivers/TWI.c ****                 else
+  88:../drivers/TWI.c ****                 {
+  89:../drivers/TWI.c ****                     twi_send_stop();
+  90:../drivers/TWI.c ****                     if (twi_descriptor.callback)
+  91:../drivers/TWI.c ****                     {
+  92:../drivers/TWI.c ****                         twi_descriptor.callback();
+  93:../drivers/TWI.c ****                     }
+  94:../drivers/TWI.c ****                     twi_descriptor.state = TWI_IDLE;
+  95:../drivers/TWI.c ****                 }
+  96:../drivers/TWI.c ****             }
+  97:../drivers/TWI.c ****             break;
+  98:../drivers/TWI.c ****         case TW_MR_DATA_ACK:    //0x50: Data Received, ACK Reply Issued
+  99:../drivers/TWI.c ****             twi_descriptor.rx_buf[twi_descriptor.index++] = TWDR;
+ 100:../drivers/TWI.c ****             if(twi_descriptor.index + 1 < twi_descriptor.rx_len)
+ 101:../drivers/TWI.c ****             {
+ 102:../drivers/TWI.c ****                 TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT) | (1 << TWEA); //Data Byte Will Be Rec
+ 103:../drivers/TWI.c ****             }
+ 104:../drivers/TWI.c ****             else
+ 105:../drivers/TWI.c ****             {
+ 106:../drivers/TWI.c ****                 TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT);   //Data Byte Will Be Received, Reply
+ 107:../drivers/TWI.c ****             }
+ 108:../drivers/TWI.c ****             break;
+ 109:../drivers/TWI.c ****         case TW_MR_DATA_NACK:   //0x58: Data Received, NACK Reply Issued
+ 110:../drivers/TWI.c ****             twi_descriptor.rx_buf[twi_descriptor.index++] = TWDR;   //Store Final Received Data Byt
+ 127               		.loc 1 110 0
+ 128 006e E091 0000 		lds r30,twi_descriptor+5
+ 129 0072 F091 0000 		lds r31,twi_descriptor+5+1
+ 130 0076 8091 0000 		lds r24,twi_descriptor+7
+ 131               	.LVL4:
+ 132 007a 91E0      		ldi r25,lo8(1)
+ 133 007c 980F      		add r25,r24
+ 134 007e 9093 0000 		sts twi_descriptor+7,r25
+ 135 0082 9091 BB00 		lds r25,187
+ 136 0086 E80F      		add r30,r24
+ 137 0088 F11D      		adc r31,__zero_reg__
+ 138 008a 9083      		st Z,r25
+ 139 008c 00C0      		rjmp .L45
+ 140               	.LVL5:
+ 141               	.L5:
+  66:../drivers/TWI.c ****             break;
+ 142               		.loc 1 66 0
+ 143 008e 8091 0000 		lds r24,twi_descriptor
+ 144               	.LVL6:
+ 145 0092 8160      		ori r24,lo8(1)
+ 146               	.LVL7:
+ 147 0094 00C0      		rjmp .L43
+ 148               	.LVL8:
+ 149               	.L3:
+  71:../drivers/TWI.c ****             {
+ 150               		.loc 1 71 0
+ 151 0096 8091 0000 		lds r24,twi_descriptor+8
+ 152               	.LVL9:
+ 153 009a 8130      		cpi r24,lo8(1)
+ 154 009c 01F0      		breq .+2
+ 155 009e 00C0      		rjmp .L1
+  73:../drivers/TWI.c ****                 {
+ 156               		.loc 1 73 0
+ 157 00a0 9091 0000 		lds r25,twi_descriptor+7
+ 158 00a4 8091 0000 		lds r24,twi_descriptor+1
+ 159 00a8 9817      		cp r25,r24
+ 160 00aa 00F4      		brsh .L13
+  75:../drivers/TWI.c ****                 }
+ 161               		.loc 1 75 0
+ 162 00ac E091 0000 		lds r30,twi_descriptor+3
+ 163 00b0 F091 0000 		lds r31,twi_descriptor+3+1
+ 164 00b4 8091 0000 		lds r24,twi_descriptor+7
+ 165 00b8 91E0      		ldi r25,lo8(1)
+ 166 00ba 980F      		add r25,r24
+ 167 00bc 9093 0000 		sts twi_descriptor+7,r25
+ 168 00c0 E80F      		add r30,r24
+ 169 00c2 F11D      		adc r31,__zero_reg__
+ 170 00c4 8081      		ld r24,Z
+ 171               	.L43:
+ 172               	.LVL10:
+ 173               	.LBB18:
+ 174               	.LBB19:
+  41:../drivers/TWI.c ****     TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT);   //Begin Send
+ 175               		.loc 1 41 0
+ 176 00c6 8093 BB00 		sts 187,r24
+ 177 00ca 00C0      		rjmp .L17
+ 178               	.LVL11:
+ 179               	.L13:
+ 180               	.LBE19:
+ 181               	.LBE18:
+  77:../drivers/TWI.c ****                 {
+ 182               		.loc 1 77 0
+ 183 00cc 8091 0000 		lds r24,twi_descriptor+2
+ 184 00d0 8823      		tst r24
+ 185 00d2 01F0      		breq .L45
+ 186               	.LBB20:
+ 187               	.LBB21:
+  47:../drivers/TWI.c **** }
+ 188               		.loc 1 47 0
+ 189 00d4 8091 BC00 		lds r24,188
+ 190 00d8 8F70      		andi r24,lo8(15)
+ 191 00da 806A      		ori r24,lo8(-96)
+ 192 00dc 8093 BC00 		sts 188,r24
+ 193               	.LBE21:
+ 194               	.LBE20:
+  80:../drivers/TWI.c ****                     if (twi_descriptor.rx_len == 1)
+ 195               		.loc 1 80 0
+ 196 00e0 1092 0000 		sts twi_descriptor+7,__zero_reg__
+  81:../drivers/TWI.c ****                     {
+ 197               		.loc 1 81 0
+ 198 00e4 8091 0000 		lds r24,twi_descriptor+2
+ 199 00e8 8130      		cpi r24,lo8(1)
+ 200 00ea 01F4      		brne .L15
+  83:../drivers/TWI.c ****                     }
+ 201               		.loc 1 83 0
+ 202 00ec 8091 BC00 		lds r24,188
+ 203 00f0 8F70      		andi r24,lo8(15)
+ 204 00f2 8068      		ori r24,lo8(-128)
+ 205 00f4 8093 BC00 		sts 188,r24
+ 206               	.L15:
+  85:../drivers/TWI.c ****                 }
+ 207               		.loc 1 85 0
+ 208 00f8 82E0      		ldi r24,lo8(2)
+ 209 00fa 8093 0000 		sts twi_descriptor+8,r24
+ 210 00fe 00C0      		rjmp .L1
+ 211               	.LVL12:
+ 212               	.L11:
+  99:../drivers/TWI.c ****             if(twi_descriptor.index + 1 < twi_descriptor.rx_len)
+ 213               		.loc 1 99 0
+ 214 0100 E091 0000 		lds r30,twi_descriptor+5
+ 215 0104 F091 0000 		lds r31,twi_descriptor+5+1
+ 216 0108 8091 0000 		lds r24,twi_descriptor+7
+ 217               	.LVL13:
+ 218 010c 91E0      		ldi r25,lo8(1)
+ 219 010e 980F      		add r25,r24
+ 220 0110 9093 0000 		sts twi_descriptor+7,r25
+ 221 0114 9091 BB00 		lds r25,187
+ 222 0118 E80F      		add r30,r24
+ 223 011a F11D      		adc r31,__zero_reg__
+ 224 011c 9083      		st Z,r25
+ 100:../drivers/TWI.c ****             {
+ 225               		.loc 1 100 0
+ 226 011e 8091 0000 		lds r24,twi_descriptor+7
+ 227 0122 2091 0000 		lds r18,twi_descriptor+2
+ 228 0126 90E0      		ldi r25,0
+ 229 0128 0196      		adiw r24,1
+ 230 012a 30E0      		ldi r19,0
+ 231 012c 8217      		cp r24,r18
+ 232 012e 9307      		cpc r25,r19
+ 233 0130 04F0      		brlt .L10
+ 234               	.L17:
+ 106:../drivers/TWI.c ****             }
+ 235               		.loc 1 106 0
+ 236 0132 8091 BC00 		lds r24,188
+ 237 0136 8F70      		andi r24,lo8(15)
+ 238 0138 8068      		ori r24,lo8(-128)
+ 239 013a 00C0      		rjmp .L41
+ 240               	.L45:
+ 241               	.LBB22:
+ 242               	.LBB23:
+  54:../drivers/TWI.c **** }
+ 243               		.loc 1 54 0
+ 244 013c 8091 BC00 		lds r24,188
+ 245 0140 8F70      		andi r24,lo8(15)
+ 246 0142 806D      		ori r24,lo8(-48)
+ 247 0144 8093 BC00 		sts 188,r24
+ 248               	.LBE23:
+ 249               	.LBE22:
+ 111:../drivers/TWI.c ****             twi_send_stop();
+ 112:../drivers/TWI.c ****             if (twi_descriptor.callback)
+ 250               		.loc 1 112 0
+ 251 0148 8091 0000 		lds r24,twi_descriptor+9
+ 252 014c 9091 0000 		lds r25,twi_descriptor+9+1
+ 253 0150 892B      		or r24,r25
+ 254 0152 01F0      		breq .L40
+ 113:../drivers/TWI.c ****             {
+ 114:../drivers/TWI.c ****                 twi_descriptor.callback();
+ 255               		.loc 1 114 0
+ 256 0154 E091 0000 		lds r30,twi_descriptor+9
+ 257 0158 F091 0000 		lds r31,twi_descriptor+9+1
+ 258 015c 0995      		icall
+ 259               	.LVL14:
+ 260 015e 00C0      		rjmp .L40
+ 261               	.LVL15:
+ 262               	.L8:
+ 263               	.LBB24:
+ 264               	.LBB25:
+  54:../drivers/TWI.c **** }
+ 265               		.loc 1 54 0
+ 266 0160 8091 BC00 		lds r24,188
+ 267               	.LVL16:
+ 268 0164 8F70      		andi r24,lo8(15)
+ 269 0166 806D      		ori r24,lo8(-48)
+ 270 0168 8093 BC00 		sts 188,r24
+ 271               	.L40:
+ 272               	.LBE25:
+ 273               	.LBE24:
+ 115:../drivers/TWI.c ****             }
+ 116:../drivers/TWI.c ****             twi_descriptor.state = TWI_IDLE;
+ 117:../drivers/TWI.c ****             break;
+ 118:../drivers/TWI.c ****         case TW_MR_SLA_NACK:    //0x48: Slave Address Not Acknowledged
+ 119:../drivers/TWI.c ****         case TW_MT_SLA_NACK:    //0x20: Slave Address Not Acknowledged
+ 120:../drivers/TWI.c ****         case TW_MT_DATA_NACK:   //0x30: Data Not Acknowledged
+ 121:../drivers/TWI.c ****             twi_send_stop();  //Transmit Stop Condition, Enable SLA ACK
+ 122:../drivers/TWI.c ****             twi_descriptor.state = TWI_IDLE;    //Set State
+ 274               		.loc 1 122 0
+ 275 016c 1092 0000 		sts twi_descriptor+8,__zero_reg__
+ 123:../drivers/TWI.c ****             break;
+ 276               		.loc 1 123 0
+ 277 0170 00C0      		rjmp .L1
+ 278               	.L10:
+ 124:../drivers/TWI.c ****         case TW_MR_SLA_ACK: //0x40: Slave Address Acknowledged
+ 125:../drivers/TWI.c ****             TWCR = (TWCR & TWCR_CMD_MASK) | (1 << TWINT) | (1 << TWEA); //Data Byte Will Be Receive
+ 279               		.loc 1 125 0
+ 280 0172 8091 BC00 		lds r24,188
+ 281 0176 8F70      		andi r24,lo8(15)
+ 282 0178 806C      		ori r24,lo8(-64)
+ 283               	.L41:
+ 284 017a 8093 BC00 		sts 188,r24
+ 285               	.L1:
+ 286               	/* epilogue start */
+ 126:../drivers/TWI.c ****     }
+ 127:../drivers/TWI.c **** }
+ 287               		.loc 1 127 0
+ 288 017e FF91      		pop r31
+ 289 0180 EF91      		pop r30
+ 290 0182 BF91      		pop r27
+ 291 0184 AF91      		pop r26
+ 292 0186 9F91      		pop r25
+ 293 0188 8F91      		pop r24
+ 294 018a 7F91      		pop r23
+ 295 018c 6F91      		pop r22
+ 296 018e 5F91      		pop r21
+ 297 0190 4F91      		pop r20
+ 298 0192 3F91      		pop r19
+ 299 0194 2F91      		pop r18
+ 300 0196 0F90      		pop r0
+ 301 0198 0FBE      		out __SREG__,r0
+ 302 019a 0F90      		pop r0
+ 303 019c 1F90      		pop r1
+ 304 019e 1895      		reti
+ 305               		.cfi_endproc
+ 306               	.LFE3:
+ 308               	.global	twi_init
+ 310               	twi_init:
+ 311               	.LFB4:
+ 128:../drivers/TWI.c **** 
+ 129:../drivers/TWI.c **** void twi_init(void)
+ 130:../drivers/TWI.c **** {
+ 312               		.loc 1 130 0
+ 313               		.cfi_startproc
+ 314               	/* prologue: function */
+ 315               	/* frame size = 0 */
+ 316               	/* stack size = 0 */
+ 317               	.L__stack_usage = 0
+ 131:../drivers/TWI.c ****     uint8_t bitrate_div;
+ 132:../drivers/TWI.c **** 
+ 133:../drivers/TWI.c ****     PORTC |= (1<<PC4) | (1<<PC5);   //Set Pull-up Resistors On TWI Bus Pins (SCL, SDA)
+ 318               		.loc 1 133 0
+ 319 01a0 88B1      		in r24,0x8
+ 320 01a2 8063      		ori r24,lo8(48)
+ 321 01a4 88B9      		out 0x8,r24
+ 134:../drivers/TWI.c **** 
+ 135:../drivers/TWI.c ****     //Set TWI Bitrate
+ 136:../drivers/TWI.c ****     //SCL freq = F_CPU/(16+2*TWBR))
+ 137:../drivers/TWI.c ****     //For Processors With Additional Bitrate Division (mega128)
+ 138:../drivers/TWI.c ****     //SCL freq = F_CPU/(16+2*TWBR*4^TWPS)
+ 139:../drivers/TWI.c ****     TWSR &= ~((1 << TWPS0) | (1 << TWPS1) );    //Set TWPS To Zero
+ 322               		.loc 1 139 0
+ 323 01a6 E9EB      		ldi r30,lo8(-71)
+ 324 01a8 F0E0      		ldi r31,0
+ 325 01aa 8081      		ld r24,Z
+ 326 01ac 8C7F      		andi r24,lo8(-4)
+ 327 01ae 8083      		st Z,r24
+ 328               	.LVL17:
+ 140:../drivers/TWI.c ****     bitrate_div = ((F_CPU / 1000l) / 400);  //Set twi Bit Rate To 100KHz
+ 141:../drivers/TWI.c ****     if(bitrate_div >= 16)
+ 142:../drivers/TWI.c ****         bitrate_div = (bitrate_div - 16) / 2;
+ 143:../drivers/TWI.c ****     TWBR = bitrate_div;
+ 329               		.loc 1 143 0
+ 330 01b0 8CE0      		ldi r24,lo8(12)
+ 331 01b2 8093 B800 		sts 184,r24
+ 144:../drivers/TWI.c ****     TWCR |= (1 << TWIE) | (1 << TWEA) | (1 << TWEN); //Enable TWI Interrupt, Slave Address ACK, TWI
+ 332               		.loc 1 144 0
+ 333 01b6 ECEB      		ldi r30,lo8(-68)
+ 334 01b8 F0E0      		ldi r31,0
+ 335 01ba 8081      		ld r24,Z
+ 336 01bc 8564      		ori r24,lo8(69)
+ 337 01be 8083      		st Z,r24
+ 338 01c0 0895      		ret
+ 339               		.cfi_endproc
+ 340               	.LFE4:
+ 342               	.global	twi_master_transfer
+ 344               	twi_master_transfer:
+ 345               	.LFB5:
+ 145:../drivers/TWI.c **** }
+ 146:../drivers/TWI.c **** 
+ 147:../drivers/TWI.c **** uint8_t twi_master_transfer(uint8_t dev_addr, uint8_t *tx_buf, uint8_t *rx_buf, uint8_t tx_len, uin
+ 148:../drivers/TWI.c **** {
+ 346               		.loc 1 148 0
+ 347               		.cfi_startproc
+ 348               	.LVL18:
+ 349 01c2 EF92      		push r14
+ 350               	.LCFI14:
+ 351               		.cfi_def_cfa_offset 3
+ 352               		.cfi_offset 14, -2
+ 353 01c4 FF92      		push r15
+ 354               	.LCFI15:
+ 355               		.cfi_def_cfa_offset 4
+ 356               		.cfi_offset 15, -3
+ 357 01c6 0F93      		push r16
+ 358               	.LCFI16:
+ 359               		.cfi_def_cfa_offset 5
+ 360               		.cfi_offset 16, -4
+ 361               	/* prologue: function */
+ 362               	/* frame size = 0 */
+ 363               	/* stack size = 3 */
+ 364               	.L__stack_usage = 3
+ 365 01c8 982F      		mov r25,r24
+ 149:../drivers/TWI.c ****     if (twi_descriptor.state != TWI_IDLE)
+ 366               		.loc 1 149 0
+ 367 01ca 8091 0000 		lds r24,twi_descriptor+8
+ 368               	.LVL19:
+ 369 01ce 8111      		cpse r24,__zero_reg__
+ 370 01d0 00C0      		rjmp .L52
+ 150:../drivers/TWI.c ****     {
+ 151:../drivers/TWI.c ****         return -1;
+ 152:../drivers/TWI.c ****     }
+ 153:../drivers/TWI.c ****     twi_descriptor.tx_buf = tx_buf;
+ 371               		.loc 1 153 0
+ 372 01d2 7093 0000 		sts twi_descriptor+3+1,r23
+ 373 01d6 6093 0000 		sts twi_descriptor+3,r22
+ 154:../drivers/TWI.c ****     twi_descriptor.rx_buf = rx_buf;
+ 374               		.loc 1 154 0
+ 375 01da 5093 0000 		sts twi_descriptor+5+1,r21
+ 376 01de 4093 0000 		sts twi_descriptor+5,r20
+ 155:../drivers/TWI.c ****     twi_descriptor.tx_len = tx_len;
+ 377               		.loc 1 155 0
+ 378 01e2 2093 0000 		sts twi_descriptor+1,r18
+ 156:../drivers/TWI.c ****     twi_descriptor.rx_len = rx_len;
+ 379               		.loc 1 156 0
+ 380 01e6 0093 0000 		sts twi_descriptor+2,r16
+ 157:../drivers/TWI.c ****     twi_descriptor.index = 0;
+ 381               		.loc 1 157 0
+ 382 01ea 1092 0000 		sts twi_descriptor+7,__zero_reg__
+ 158:../drivers/TWI.c ****     twi_descriptor.callback = callback;
+ 383               		.loc 1 158 0
+ 384 01ee F092 0000 		sts twi_descriptor+9+1,r15
+ 385 01f2 E092 0000 		sts twi_descriptor+9,r14
+ 159:../drivers/TWI.c ****     if (tx_len > 0)
+ 386               		.loc 1 159 0
+ 387 01f6 2223      		tst r18
+ 388 01f8 01F0      		breq .L50
+ 160:../drivers/TWI.c ****     {
+ 161:../drivers/TWI.c ****         twi_descriptor.state = TWI_MASTER_TX;
+ 389               		.loc 1 161 0
+ 390 01fa 21E0      		ldi r18,lo8(1)
+ 391               	.LVL20:
+ 392 01fc 2093 0000 		sts twi_descriptor+8,r18
+ 393 0200 00C0      		rjmp .L51
+ 394               	.LVL21:
+ 395               	.L50:
+ 162:../drivers/TWI.c ****     }
+ 163:../drivers/TWI.c ****     else
+ 164:../drivers/TWI.c ****     {
+ 165:../drivers/TWI.c ****         twi_descriptor.state = TWI_MASTER_RX;
+ 396               		.loc 1 165 0
+ 397 0202 22E0      		ldi r18,lo8(2)
+ 398               	.LVL22:
+ 399 0204 2093 0000 		sts twi_descriptor+8,r18
+ 166:../drivers/TWI.c ****         dev_addr |= 1;
+ 400               		.loc 1 166 0
+ 401 0208 9160      		ori r25,lo8(1)
+ 402               	.LVL23:
+ 403               	.L51:
+ 167:../drivers/TWI.c ****     }
+ 168:../drivers/TWI.c ****     twi_descriptor.dev_addr = dev_addr;
+ 404               		.loc 1 168 0
+ 405 020a 9093 0000 		sts twi_descriptor,r25
+ 406               	.LBB26:
+ 407               	.LBB27:
+  47:../drivers/TWI.c **** }
+ 408               		.loc 1 47 0
+ 409 020e 9091 BC00 		lds r25,188
+ 410               	.LVL24:
+ 411 0212 9F70      		andi r25,lo8(15)
+ 412 0214 906A      		ori r25,lo8(-96)
+ 413 0216 9093 BC00 		sts 188,r25
+ 414               	.LVL25:
+ 415               	.LBE27:
+ 416               	.LBE26:
+ 169:../drivers/TWI.c ****     twi_send_start();
+ 170:../drivers/TWI.c ****     return 0;
+ 417               		.loc 1 170 0
+ 418 021a 00C0      		rjmp .L49
+ 419               	.LVL26:
+ 420               	.L52:
+ 151:../drivers/TWI.c ****     }
+ 421               		.loc 1 151 0
+ 422 021c 8FEF      		ldi r24,lo8(-1)
+ 423               	.LVL27:
+ 424               	.L49:
+ 425               	/* epilogue start */
+ 171:../drivers/TWI.c **** }
+ 426               		.loc 1 171 0
+ 427 021e 0F91      		pop r16
+ 428               	.LVL28:
+ 429 0220 FF90      		pop r15
+ 430 0222 EF90      		pop r14
+ 431               	.LVL29:
+ 432 0224 0895      		ret
+ 433               		.cfi_endproc
+ 434               	.LFE5:
+ 436               	.global	twi_ready
+ 438               	twi_ready:
+ 439               	.LFB6:
+ 172:../drivers/TWI.c **** 
+ 173:../drivers/TWI.c **** uint8_t twi_ready(void)
+ 174:../drivers/TWI.c **** {
+ 440               		.loc 1 174 0
+ 441               		.cfi_startproc
+ 442               	/* prologue: function */
+ 443               	/* frame size = 0 */
+ 444               	/* stack size = 0 */
+ 445               	.L__stack_usage = 0
+ 175:../drivers/TWI.c ****     return twi_descriptor.state == TWI_IDLE;
+ 446               		.loc 1 175 0
+ 447 0226 9091 0000 		lds r25,twi_descriptor+8
+ 448 022a 81E0      		ldi r24,lo8(1)
+ 449 022c 9111      		cpse r25,__zero_reg__
+ 450 022e 80E0      		ldi r24,0
+ 451               	.L54:
+ 176:../drivers/TWI.c **** }
+ 452               		.loc 1 176 0
+ 453 0230 0895      		ret
+ 454               		.cfi_endproc
+ 455               	.LFE6:
+ 457               		.local	twi_descriptor
+ 458               		.comm	twi_descriptor,11,1
+ 459               	.Letext0:
+ 460               		.file 2 "/usr/lib/avr/include/stdint.h"
+ 461               		.file 3 "../drivers/TWI.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 TWI.c
+     /tmp/cc2emarI.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/cc2emarI.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/cc2emarI.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/cc2emarI.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/cc2emarI.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/cc2emarI.s:12     .text:0000000000000000 __vector_24
+                             .bss:0000000000000000 twi_descriptor
+     /tmp/cc2emarI.s:310    .text:00000000000001a0 twi_init
+     /tmp/cc2emarI.s:344    .text:00000000000001c2 twi_master_transfer
+     /tmp/cc2emarI.s:438    .text:0000000000000226 twi_ready
+
+UNDEFINED SYMBOLS
+__do_clear_bss

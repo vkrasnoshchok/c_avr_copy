@@ -1,0 +1,374 @@
+   1               		.file	"SPI.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	spi_master_init
+  12               	spi_master_init:
+  13               	.LFB0:
+  14               		.file 1 "../drivers/SPI.c"
+   1:../drivers/SPI.c **** #include <avr/io.h>
+   2:../drivers/SPI.c **** #include <avr/interrupt.h>
+   3:../drivers/SPI.c **** #include "SPI.h"
+   4:../drivers/SPI.c **** 
+   5:../drivers/SPI.c **** typedef enum {
+   6:../drivers/SPI.c ****     SPI_IDLE = 0,
+   7:../drivers/SPI.c ****     SPI_MASTER_TX = 1
+   8:../drivers/SPI.c **** } spi_state_t;
+   9:../drivers/SPI.c **** 
+  10:../drivers/SPI.c **** typedef struct {
+  11:../drivers/SPI.c ****     uint8_t len;
+  12:../drivers/SPI.c ****     uint8_t *tx_buf;
+  13:../drivers/SPI.c ****     uint8_t *rx_buf;
+  14:../drivers/SPI.c ****     uint8_t state;
+  15:../drivers/SPI.c ****     spi_cb callback;
+  16:../drivers/SPI.c **** } spi_descriptor_t;
+  17:../drivers/SPI.c **** 
+  18:../drivers/SPI.c **** static volatile spi_descriptor_t spi_descriptor;
+  19:../drivers/SPI.c **** 
+  20:../drivers/SPI.c **** void spi_master_init(void)
+  21:../drivers/SPI.c **** {
+  15               		.loc 1 21 0
+  16               		.cfi_startproc
+  17               	/* prologue: function */
+  18               	/* frame size = 0 */
+  19               	/* stack size = 0 */
+  20               	.L__stack_usage = 0
+  22:../drivers/SPI.c ****     /* Set MOSI and SCK output, all others input */
+  23:../drivers/SPI.c ****     DDRB |= (1<<PB3)|(1<<PB5)|(1<<PB2);
+  21               		.loc 1 23 0
+  22 0000 84B1      		in r24,0x4
+  23 0002 8C62      		ori r24,lo8(44)
+  24 0004 84B9      		out 0x4,r24
+  24:../drivers/SPI.c ****     /* Enable SPI, Master, set clock rate fck/16 */
+  25:../drivers/SPI.c ****     SPCR = (1<<SPIE)|(1<<SPE)|(1<<MSTR)|(1<<SPR0);
+  25               		.loc 1 25 0
+  26 0006 81ED      		ldi r24,lo8(-47)
+  27 0008 8CBD      		out 0x2c,r24
+  28 000a 0895      		ret
+  29               		.cfi_endproc
+  30               	.LFE0:
+  32               	.global	__vector_17
+  34               	__vector_17:
+  35               	.LFB1:
+  26:../drivers/SPI.c **** }
+  27:../drivers/SPI.c **** 
+  28:../drivers/SPI.c **** SIGNAL(SPI_STC_vect)
+  29:../drivers/SPI.c **** {
+  36               		.loc 1 29 0
+  37               		.cfi_startproc
+  38 000c 1F92      		push r1
+  39               	.LCFI0:
+  40               		.cfi_def_cfa_offset 3
+  41               		.cfi_offset 1, -2
+  42 000e 0F92      		push r0
+  43               	.LCFI1:
+  44               		.cfi_def_cfa_offset 4
+  45               		.cfi_offset 0, -3
+  46 0010 0FB6      		in r0,__SREG__
+  47 0012 0F92      		push r0
+  48 0014 1124      		clr __zero_reg__
+  49 0016 2F93      		push r18
+  50               	.LCFI2:
+  51               		.cfi_def_cfa_offset 5
+  52               		.cfi_offset 18, -4
+  53 0018 3F93      		push r19
+  54               	.LCFI3:
+  55               		.cfi_def_cfa_offset 6
+  56               		.cfi_offset 19, -5
+  57 001a 4F93      		push r20
+  58               	.LCFI4:
+  59               		.cfi_def_cfa_offset 7
+  60               		.cfi_offset 20, -6
+  61 001c 5F93      		push r21
+  62               	.LCFI5:
+  63               		.cfi_def_cfa_offset 8
+  64               		.cfi_offset 21, -7
+  65 001e 6F93      		push r22
+  66               	.LCFI6:
+  67               		.cfi_def_cfa_offset 9
+  68               		.cfi_offset 22, -8
+  69 0020 7F93      		push r23
+  70               	.LCFI7:
+  71               		.cfi_def_cfa_offset 10
+  72               		.cfi_offset 23, -9
+  73 0022 8F93      		push r24
+  74               	.LCFI8:
+  75               		.cfi_def_cfa_offset 11
+  76               		.cfi_offset 24, -10
+  77 0024 9F93      		push r25
+  78               	.LCFI9:
+  79               		.cfi_def_cfa_offset 12
+  80               		.cfi_offset 25, -11
+  81 0026 AF93      		push r26
+  82               	.LCFI10:
+  83               		.cfi_def_cfa_offset 13
+  84               		.cfi_offset 26, -12
+  85 0028 BF93      		push r27
+  86               	.LCFI11:
+  87               		.cfi_def_cfa_offset 14
+  88               		.cfi_offset 27, -13
+  89 002a EF93      		push r30
+  90               	.LCFI12:
+  91               		.cfi_def_cfa_offset 15
+  92               		.cfi_offset 30, -14
+  93 002c FF93      		push r31
+  94               	.LCFI13:
+  95               		.cfi_def_cfa_offset 16
+  96               		.cfi_offset 31, -15
+  97               	/* prologue: Signal */
+  98               	/* frame size = 0 */
+  99               	/* stack size = 15 */
+ 100               	.L__stack_usage = 15
+  30:../drivers/SPI.c ****     if (spi_descriptor.rx_buf)
+ 101               		.loc 1 30 0
+ 102 002e 8091 0000 		lds r24,spi_descriptor+3
+ 103 0032 9091 0000 		lds r25,spi_descriptor+3+1
+ 104 0036 892B      		or r24,r25
+ 105 0038 01F0      		breq .L3
+  31:../drivers/SPI.c ****     {
+  32:../drivers/SPI.c ****         *spi_descriptor.rx_buf++ = SPDR;
+ 106               		.loc 1 32 0
+ 107 003a E091 0000 		lds r30,spi_descriptor+3
+ 108 003e F091 0000 		lds r31,spi_descriptor+3+1
+ 109 0042 CF01      		movw r24,r30
+ 110 0044 0196      		adiw r24,1
+ 111 0046 9093 0000 		sts spi_descriptor+3+1,r25
+ 112 004a 8093 0000 		sts spi_descriptor+3,r24
+ 113 004e 8EB5      		in r24,0x2e
+ 114 0050 8083      		st Z,r24
+ 115               	.L3:
+  33:../drivers/SPI.c ****     }
+  34:../drivers/SPI.c ****     if (--spi_descriptor.len)
+ 116               		.loc 1 34 0
+ 117 0052 8091 0000 		lds r24,spi_descriptor
+ 118 0056 8150      		subi r24,lo8(-(-1))
+ 119 0058 8093 0000 		sts spi_descriptor,r24
+ 120 005c 8823      		tst r24
+ 121 005e 01F0      		breq .L4
+  35:../drivers/SPI.c ****     {
+  36:../drivers/SPI.c ****         SPDR = *spi_descriptor.tx_buf++;
+ 122               		.loc 1 36 0
+ 123 0060 E091 0000 		lds r30,spi_descriptor+1
+ 124 0064 F091 0000 		lds r31,spi_descriptor+1+1
+ 125 0068 CF01      		movw r24,r30
+ 126 006a 0196      		adiw r24,1
+ 127 006c 9093 0000 		sts spi_descriptor+1+1,r25
+ 128 0070 8093 0000 		sts spi_descriptor+1,r24
+ 129 0074 8081      		ld r24,Z
+ 130 0076 8EBD      		out 0x2e,r24
+ 131 0078 00C0      		rjmp .L2
+ 132               	.L4:
+  37:../drivers/SPI.c ****     }
+  38:../drivers/SPI.c ****     else
+  39:../drivers/SPI.c ****     {
+  40:../drivers/SPI.c ****         if (spi_descriptor.callback)
+ 133               		.loc 1 40 0
+ 134 007a 8091 0000 		lds r24,spi_descriptor+6
+ 135 007e 9091 0000 		lds r25,spi_descriptor+6+1
+ 136 0082 892B      		or r24,r25
+ 137 0084 01F0      		breq .L6
+  41:../drivers/SPI.c ****         {
+  42:../drivers/SPI.c ****             spi_descriptor.callback();
+ 138               		.loc 1 42 0
+ 139 0086 E091 0000 		lds r30,spi_descriptor+6
+ 140 008a F091 0000 		lds r31,spi_descriptor+6+1
+ 141 008e 0995      		icall
+ 142               	.LVL0:
+ 143               	.L6:
+  43:../drivers/SPI.c ****         }
+  44:../drivers/SPI.c ****         spi_descriptor.state = SPI_IDLE;
+ 144               		.loc 1 44 0
+ 145 0090 1092 0000 		sts spi_descriptor+5,__zero_reg__
+ 146               	.L2:
+ 147               	/* epilogue start */
+  45:../drivers/SPI.c ****     }
+  46:../drivers/SPI.c **** }
+ 148               		.loc 1 46 0
+ 149 0094 FF91      		pop r31
+ 150 0096 EF91      		pop r30
+ 151 0098 BF91      		pop r27
+ 152 009a AF91      		pop r26
+ 153 009c 9F91      		pop r25
+ 154 009e 8F91      		pop r24
+ 155 00a0 7F91      		pop r23
+ 156 00a2 6F91      		pop r22
+ 157 00a4 5F91      		pop r21
+ 158 00a6 4F91      		pop r20
+ 159 00a8 3F91      		pop r19
+ 160 00aa 2F91      		pop r18
+ 161 00ac 0F90      		pop r0
+ 162 00ae 0FBE      		out __SREG__,r0
+ 163 00b0 0F90      		pop r0
+ 164 00b2 1F90      		pop r1
+ 165 00b4 1895      		reti
+ 166               		.cfi_endproc
+ 167               	.LFE1:
+ 169               	.global	spi_master_transfer
+ 171               	spi_master_transfer:
+ 172               	.LFB2:
+  47:../drivers/SPI.c **** 
+  48:../drivers/SPI.c **** uint8_t spi_master_transfer(uint8_t *tx_buf, uint8_t *rx_buf, uint8_t len, spi_cb callback)
+  49:../drivers/SPI.c **** {
+ 173               		.loc 1 49 0
+ 174               		.cfi_startproc
+ 175               	.LVL1:
+ 176               	/* prologue: function */
+ 177               	/* frame size = 0 */
+ 178               	/* stack size = 0 */
+ 179               	.L__stack_usage = 0
+ 180 00b6 FC01      		movw r30,r24
+  50:../drivers/SPI.c ****     if (spi_descriptor.state != SPI_IDLE)
+ 181               		.loc 1 50 0
+ 182 00b8 8091 0000 		lds r24,spi_descriptor+5
+ 183               	.LVL2:
+ 184 00bc 8111      		cpse r24,__zero_reg__
+ 185 00be 00C0      		rjmp .L16
+  51:../drivers/SPI.c ****     {
+  52:../drivers/SPI.c ****         return -1;
+  53:../drivers/SPI.c ****     }
+  54:../drivers/SPI.c ****     spi_descriptor.tx_buf = tx_buf + 1;
+ 186               		.loc 1 54 0
+ 187 00c0 DF01      		movw r26,r30
+ 188 00c2 1196      		adiw r26,1
+ 189 00c4 B093 0000 		sts spi_descriptor+1+1,r27
+ 190 00c8 A093 0000 		sts spi_descriptor+1,r26
+  55:../drivers/SPI.c ****     spi_descriptor.rx_buf = rx_buf;
+ 191               		.loc 1 55 0
+ 192 00cc 7093 0000 		sts spi_descriptor+3+1,r23
+ 193 00d0 6093 0000 		sts spi_descriptor+3,r22
+  56:../drivers/SPI.c ****     spi_descriptor.len = len;
+ 194               		.loc 1 56 0
+ 195 00d4 4093 0000 		sts spi_descriptor,r20
+  57:../drivers/SPI.c ****     spi_descriptor.callback = callback;
+ 196               		.loc 1 57 0
+ 197 00d8 3093 0000 		sts spi_descriptor+6+1,r19
+ 198 00dc 2093 0000 		sts spi_descriptor+6,r18
+  58:../drivers/SPI.c ****     spi_descriptor.state = SPI_MASTER_TX;
+ 199               		.loc 1 58 0
+ 200 00e0 91E0      		ldi r25,lo8(1)
+ 201 00e2 9093 0000 		sts spi_descriptor+5,r25
+  59:../drivers/SPI.c ****     SPDR = *tx_buf;
+ 202               		.loc 1 59 0
+ 203 00e6 9081      		ld r25,Z
+ 204 00e8 9EBD      		out 0x2e,r25
+  60:../drivers/SPI.c ****     return 0;
+ 205               		.loc 1 60 0
+ 206 00ea 0895      		ret
+ 207               	.L16:
+  52:../drivers/SPI.c ****     }
+ 208               		.loc 1 52 0
+ 209 00ec 8FEF      		ldi r24,lo8(-1)
+  61:../drivers/SPI.c **** }
+ 210               		.loc 1 61 0
+ 211 00ee 0895      		ret
+ 212               		.cfi_endproc
+ 213               	.LFE2:
+ 215               	.global	spi_master_transfer_blocking
+ 217               	spi_master_transfer_blocking:
+ 218               	.LFB3:
+  62:../drivers/SPI.c **** 
+  63:../drivers/SPI.c **** void spi_master_transfer_blocking(uint8_t *tx_buf, uint8_t *rx_buf, uint8_t len)
+  64:../drivers/SPI.c **** {
+ 219               		.loc 1 64 0
+ 220               		.cfi_startproc
+ 221               	/* prologue: function */
+ 222               	/* frame size = 0 */
+ 223               	/* stack size = 0 */
+ 224               	.L__stack_usage = 0
+ 225               	.LVL3:
+ 226               	.L18:
+  65:../drivers/SPI.c ****     while (spi_descriptor.state != SPI_IDLE);
+ 227               		.loc 1 65 0 discriminator 1
+ 228 00f0 2091 0000 		lds r18,spi_descriptor+5
+ 229 00f4 2111      		cpse r18,__zero_reg__
+ 230 00f6 00C0      		rjmp .L18
+  66:../drivers/SPI.c ****     spi_descriptor.tx_buf = tx_buf + 1;
+ 231               		.loc 1 66 0
+ 232 00f8 9C01      		movw r18,r24
+ 233 00fa 2F5F      		subi r18,-1
+ 234 00fc 3F4F      		sbci r19,-1
+ 235 00fe 3093 0000 		sts spi_descriptor+1+1,r19
+ 236 0102 2093 0000 		sts spi_descriptor+1,r18
+  67:../drivers/SPI.c ****     spi_descriptor.rx_buf = rx_buf;
+ 237               		.loc 1 67 0
+ 238 0106 7093 0000 		sts spi_descriptor+3+1,r23
+ 239 010a 6093 0000 		sts spi_descriptor+3,r22
+  68:../drivers/SPI.c ****     spi_descriptor.len = len;
+ 240               		.loc 1 68 0
+ 241 010e 4093 0000 		sts spi_descriptor,r20
+  69:../drivers/SPI.c ****     spi_descriptor.callback = 0;
+ 242               		.loc 1 69 0
+ 243 0112 1092 0000 		sts spi_descriptor+6+1,__zero_reg__
+ 244 0116 1092 0000 		sts spi_descriptor+6,__zero_reg__
+  70:../drivers/SPI.c ****     spi_descriptor.state = SPI_MASTER_TX;
+ 245               		.loc 1 70 0
+ 246 011a 21E0      		ldi r18,lo8(1)
+ 247 011c 2093 0000 		sts spi_descriptor+5,r18
+  71:../drivers/SPI.c ****     SPDR = *tx_buf;
+ 248               		.loc 1 71 0
+ 249 0120 FC01      		movw r30,r24
+ 250 0122 8081      		ld r24,Z
+ 251               	.LVL4:
+ 252 0124 8EBD      		out 0x2e,r24
+ 253               	.L19:
+  72:../drivers/SPI.c ****     while (spi_descriptor.state != SPI_IDLE);
+ 254               		.loc 1 72 0 discriminator 1
+ 255 0126 8091 0000 		lds r24,spi_descriptor+5
+ 256 012a 8111      		cpse r24,__zero_reg__
+ 257 012c 00C0      		rjmp .L19
+ 258               	/* epilogue start */
+  73:../drivers/SPI.c **** }
+ 259               		.loc 1 73 0
+ 260 012e 0895      		ret
+ 261               		.cfi_endproc
+ 262               	.LFE3:
+ 264               	.global	spi_ready
+ 266               	spi_ready:
+ 267               	.LFB4:
+  74:../drivers/SPI.c **** 
+  75:../drivers/SPI.c **** uint8_t spi_ready(void)
+  76:../drivers/SPI.c **** {
+ 268               		.loc 1 76 0
+ 269               		.cfi_startproc
+ 270               	/* prologue: function */
+ 271               	/* frame size = 0 */
+ 272               	/* stack size = 0 */
+ 273               	.L__stack_usage = 0
+  77:../drivers/SPI.c ****     return spi_descriptor.state == SPI_IDLE;
+ 274               		.loc 1 77 0
+ 275 0130 9091 0000 		lds r25,spi_descriptor+5
+ 276 0134 81E0      		ldi r24,lo8(1)
+ 277 0136 9111      		cpse r25,__zero_reg__
+ 278 0138 80E0      		ldi r24,0
+ 279               	.L23:
+  78:../drivers/SPI.c **** }
+ 280               		.loc 1 78 0
+ 281 013a 0895      		ret
+ 282               		.cfi_endproc
+ 283               	.LFE4:
+ 285               		.local	spi_descriptor
+ 286               		.comm	spi_descriptor,8,1
+ 287               	.Letext0:
+ 288               		.file 2 "/usr/lib/avr/include/stdint.h"
+ 289               		.file 3 "../drivers/SPI.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 SPI.c
+     /tmp/ccQKkjhR.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/ccQKkjhR.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/ccQKkjhR.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/ccQKkjhR.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/ccQKkjhR.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/ccQKkjhR.s:12     .text:0000000000000000 spi_master_init
+     /tmp/ccQKkjhR.s:34     .text:000000000000000c __vector_17
+                             .bss:0000000000000000 spi_descriptor
+     /tmp/ccQKkjhR.s:171    .text:00000000000000b6 spi_master_transfer
+     /tmp/ccQKkjhR.s:217    .text:00000000000000f0 spi_master_transfer_blocking
+     /tmp/ccQKkjhR.s:266    .text:0000000000000130 spi_ready
+
+UNDEFINED SYMBOLS
+__do_clear_bss

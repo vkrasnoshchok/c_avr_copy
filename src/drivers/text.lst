@@ -1,0 +1,359 @@
+   1               		.file	"text.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	months_width
+  11               		.section	.progmem.data,"a",@progbits
+  14               	months_width:
+  15 0000 15        		.byte	21
+  16 0001 1D        		.byte	29
+  17 0002 1F        		.byte	31
+  18 0003 19        		.byte	25
+  19 0004 1C        		.byte	28
+  20 0005 1C        		.byte	28
+  21 0006 18        		.byte	24
+  22 0007 1C        		.byte	28
+  23 0008 20        		.byte	32
+  24 0009 1D        		.byte	29
+  25 000a 1E        		.byte	30
+  26 000b 1B        		.byte	27
+  27               	.global	months_table
+  30               	months_table:
+  31 000c 65        		.byte	101
+  32 000d 29        		.byte	41
+  33 000e 38        		.byte	56
+  34 000f 00        		.byte	0
+  35 0010 91        		.byte	-111
+  36 0011 29        		.byte	41
+  37 0012 48        		.byte	72
+  38 0013 00        		.byte	0
+  39 0014 84        		.byte	-124
+  40 0015 EF        		.byte	-17
+  41 0016 38        		.byte	56
+  42 0017 00        		.byte	0
+  43 0018 94        		.byte	-108
+  44 0019 29        		.byte	41
+  45 001a 28        		.byte	40
+  46 001b 00        		.byte	0
+  47 001c 64        		.byte	100
+  48 001d 29        		.byte	41
+  49 001e 48        		.byte	72
+  50 001f 00        		.byte	0
+  51 0020 34        		.byte	52
+  52 0021 CE        		.byte	-50
+  53 0022 67        		.byte	103
+  54 0023 30        		.byte	48
+  55 0024 55        		.byte	85
+  56 0025 24        		.byte	36
+  57 0026 94        		.byte	-108
+  58 0027 48        		.byte	72
+  59 0028 57        		.byte	87
+  60 0029 24        		.byte	36
+  61 002a 94        		.byte	-108
+  62 002b 48        		.byte	72
+  63 002c 55        		.byte	85
+  64 002d 24        		.byte	36
+  65 002e 94        		.byte	-108
+  66 002f 48        		.byte	72
+  67 0030 94        		.byte	-108
+  68 0031 C4        		.byte	-60
+  69 0032 64        		.byte	100
+  70 0033 30        		.byte	48
+  71 0034 F7        		.byte	-9
+  72 0035 73        		.byte	115
+  73 0036 B2        		.byte	-78
+  74 0037 4E        		.byte	78
+  75 0038 84        		.byte	-124
+  76 0039 4A        		.byte	74
+  77 003a 0A        		.byte	10
+  78 003b 52        		.byte	82
+  79 003c E7        		.byte	-25
+  80 003d 73        		.byte	115
+  81 003e B3        		.byte	-77
+  82 003f CE        		.byte	-50
+  83 0040 94        		.byte	-108
+  84 0041 42        		.byte	66
+  85 0042 0A        		.byte	10
+  86 0043 4A        		.byte	74
+  87 0044 E7        		.byte	-25
+  88 0045 43        		.byte	67
+  89 0046 B2        		.byte	-78
+  90 0047 52        		.byte	82
+  91 0048 97        		.byte	-105
+  92 0049 2E        		.byte	46
+  93 004a 93        		.byte	-109
+  94 004b 80        		.byte	-128
+  95 004c A4        		.byte	-92
+  96 004d 84        		.byte	-124
+  97 004e 94        		.byte	-108
+  98 004f 80        		.byte	-128
+  99 0050 C7        		.byte	-57
+ 100 0051 24        		.byte	36
+ 101 0052 F3        		.byte	-13
+ 102 0053 80        		.byte	-128
+ 103 0054 A4        		.byte	-92
+ 104 0055 A4        		.byte	-92
+ 105 0056 92        		.byte	-110
+ 106 0057 80        		.byte	-128
+ 107 0058 97        		.byte	-105
+ 108 0059 24        		.byte	36
+ 109 005a 94        		.byte	-108
+ 110 005b 80        		.byte	-128
+ 111 005c EE        		.byte	-18
+ 112 005d 33        		.byte	51
+ 113 005e 92        		.byte	-110
+ 114 005f 70        		.byte	112
+ 115 0060 49        		.byte	73
+ 116 0061 4A        		.byte	74
+ 117 0062 52        		.byte	82
+ 118 0063 90        		.byte	-112
+ 119 0064 4E        		.byte	78
+ 120 0065 4B        		.byte	75
+ 121 0066 9E        		.byte	-98
+ 122 0067 70        		.byte	112
+ 123 0068 48        		.byte	72
+ 124 0069 7A        		.byte	122
+ 125 006a 52        		.byte	82
+ 126 006b 50        		.byte	80
+ 127 006c 48        		.byte	72
+ 128 006d 4B        		.byte	75
+ 129 006e 92        		.byte	-110
+ 130 006f 90        		.byte	-112
+ 131 0070 97        		.byte	-105
+ 132 0071 73        		.byte	115
+ 133 0072 92        		.byte	-110
+ 134 0073 70        		.byte	112
+ 135 0074 94        		.byte	-108
+ 136 0075 4A        		.byte	74
+ 137 0076 52        		.byte	82
+ 138 0077 90        		.byte	-112
+ 139 0078 77        		.byte	119
+ 140 0079 73        		.byte	115
+ 141 007a 9E        		.byte	-98
+ 142 007b 70        		.byte	112
+ 143 007c 14        		.byte	20
+ 144 007d 42        		.byte	66
+ 145 007e 52        		.byte	82
+ 146 007f 50        		.byte	80
+ 147 0080 17        		.byte	23
+ 148 0081 43        		.byte	67
+ 149 0082 92        		.byte	-110
+ 150 0083 90        		.byte	-112
+ 151 0084 34        		.byte	52
+ 152 0085 BD        		.byte	-67
+ 153 0086 27        		.byte	39
+ 154 0087 00        		.byte	0
+ 155 0088 54        		.byte	84
+ 156 0089 A5        		.byte	-91
+ 157 008a 29        		.byte	41
+ 158 008b 00        		.byte	0
+ 159 008c 55        		.byte	85
+ 160 008d A5        		.byte	-91
+ 161 008e E7        		.byte	-25
+ 162 008f 00        		.byte	0
+ 163 0090 56        		.byte	86
+ 164 0091 A5        		.byte	-91
+ 165 0092 25        		.byte	37
+ 166 0093 00        		.byte	0
+ 167 0094 94        		.byte	-108
+ 168 0095 A5        		.byte	-91
+ 169 0096 29        		.byte	41
+ 170 0097 00        		.byte	0
+ 171 0098 67        		.byte	103
+ 172 0099 73        		.byte	115
+ 173 009a D2        		.byte	-46
+ 174 009b 70        		.byte	112
+ 175 009c 94        		.byte	-108
+ 176 009d 4A        		.byte	74
+ 177 009e 52        		.byte	82
+ 178 009f 90        		.byte	-112
+ 179 00a0 87        		.byte	-121
+ 180 00a1 72        		.byte	114
+ 181 00a2 5E        		.byte	94
+ 182 00a3 70        		.byte	112
+ 183 00a4 94        		.byte	-108
+ 184 00a5 42        		.byte	66
+ 185 00a6 52        		.byte	82
+ 186 00a7 50        		.byte	80
+ 187 00a8 67        		.byte	103
+ 188 00a9 42        		.byte	66
+ 189 00aa 52        		.byte	82
+ 190 00ab 90        		.byte	-112
+ 191 00ac E7        		.byte	-25
+ 192 00ad 73        		.byte	115
+ 193 00ae 99        		.byte	-103
+ 194 00af 27        		.byte	39
+ 195 00b0 94        		.byte	-108
+ 196 00b1 4A        		.byte	74
+ 197 00b2 25        		.byte	37
+ 198 00b3 29        		.byte	41
+ 199 00b4 E7        		.byte	-25
+ 200 00b5 73        		.byte	115
+ 201 00b6 A1        		.byte	-95
+ 202 00b7 E7        		.byte	-25
+ 203 00b8 94        		.byte	-108
+ 204 00b9 42        		.byte	66
+ 205 00ba 25        		.byte	37
+ 206 00bb 25        		.byte	37
+ 207 00bc E7        		.byte	-25
+ 208 00bd 43        		.byte	67
+ 209 00be 99        		.byte	-103
+ 210 00bf 29        		.byte	41
+ 211 00c0 A9        		.byte	-87
+ 212 00c1 9C        		.byte	-100
+ 213 00c2 E9        		.byte	-23
+ 214 00c3 38        		.byte	56
+ 215 00c4 AA        		.byte	-86
+ 216 00c5 52        		.byte	82
+ 217 00c6 49        		.byte	73
+ 218 00c7 48        		.byte	72
+ 219 00c8 72        		.byte	114
+ 220 00c9 5C        		.byte	92
+ 221 00ca 4F        		.byte	79
+ 222 00cb 38        		.byte	56
+ 223 00cc AA        		.byte	-86
+ 224 00cd 52        		.byte	82
+ 225 00ce 49        		.byte	73
+ 226 00cf 28        		.byte	40
+ 227 00d0 A9        		.byte	-87
+ 228 00d1 9C        		.byte	-100
+ 229 00d2 49        		.byte	73
+ 230 00d3 48        		.byte	72
+ 231 00d4 34        		.byte	52
+ 232 00d5 99        		.byte	-103
+ 233 00d6 CC        		.byte	-52
+ 234 00d7 F0        		.byte	-16
+ 235 00d8 54        		.byte	84
+ 236 00d9 A4        		.byte	-92
+ 237 00da 92        		.byte	-110
+ 238 00db 90        		.byte	-112
+ 239 00dc 55        		.byte	85
+ 240 00dd A0        		.byte	-96
+ 241 00de 92        		.byte	-110
+ 242 00df 90        		.byte	-112
+ 243 00e0 56        		.byte	86
+ 244 00e1 A4        		.byte	-92
+ 245 00e2 92        		.byte	-110
+ 246 00e3 90        		.byte	-112
+ 247 00e4 94        		.byte	-108
+ 248 00e5 98        		.byte	-104
+ 249 00e6 8C        		.byte	-116
+ 250 00e7 94        		.byte	-108
+ 251 00e8 EE        		.byte	-18
+ 252 00e9 51        		.byte	81
+ 253 00ea A4        		.byte	-92
+ 254 00eb E0        		.byte	-32
+ 255 00ec 89        		.byte	-119
+ 256 00ed 52        		.byte	82
+ 257 00ee A5        		.byte	-91
+ 258 00ef 20        		.byte	32
+ 259 00f0 8E        		.byte	-114
+ 260 00f1 32        		.byte	50
+ 261 00f2 BC        		.byte	-68
+ 262 00f3 E0        		.byte	-32
+ 263 00f4 88        		.byte	-120
+ 264 00f5 17        		.byte	23
+ 265 00f6 A4        		.byte	-92
+ 266 00f7 A0        		.byte	-96
+ 267 00f8 88        		.byte	-120
+ 268 00f9 64        		.byte	100
+ 269 00fa A5        		.byte	-91
+ 270 00fb 20        		.byte	32
+ 271               	.global	dow_shift
+ 274               	dow_shift:
+ 275 00fc 00        		.byte	0
+ 276 00fd 08        		.byte	8
+ 277 00fe 00        		.byte	0
+ 278 00ff 04        		.byte	4
+ 279 0100 07        		.byte	7
+ 280 0101 08        		.byte	8
+ 281 0102 02        		.byte	2
+ 282 0103 06        		.byte	6
+ 283               	.global	dow_len
+ 286               	dow_len:
+ 287 0104 00        		.byte	0
+ 288 0105 06        		.byte	6
+ 289 0106 09        		.byte	9
+ 290 0107 08        		.byte	8
+ 291 0108 06        		.byte	6
+ 292 0109 06        		.byte	6
+ 293 010a 08        		.byte	8
+ 294 010b 06        		.byte	6
+ 295               	.global	dow_str
+ 296               		.data
+ 299               	dow_str:
+ 300 0000 0000      		.word	emp
+ 301 0002 0000      		.word	sun
+ 302 0004 0000      		.word	mon
+ 303 0006 0000      		.word	tue
+ 304 0008 0000      		.word	wed
+ 305 000a 0000      		.word	thu
+ 306 000c 0000      		.word	fri
+ 307 000e 0000      		.word	sat
+ 308               	.global	sat
+ 309               		.section	.progmem.data,"a",@progbits
+ 312               	sat:
+ 313 010c D1F3 E1EE 		.string	"\321\363\341\356\362\340"
+ 313      F2E0 00
+ 314               	.global	fri
+ 317               	fri:
+ 318 0113 CF27 FFF2 		.string	"\317'\377\362\355\350\366\377"
+ 318      EDE8 F6FF 
+ 318      00
+ 319               	.global	thu
+ 322               	thu:
+ 323 011c D7E5 F2E2 		.string	"\327\345\362\342\345\360"
+ 323      E5F0 00
+ 324               	.global	wed
+ 327               	wed:
+ 328 0123 D1E5 F0E5 		.string	"\321\345\360\345\344\340"
+ 328      E4E0 00
+ 329               	.global	tue
+ 332               	tue:
+ 333 012a C2B3 E2F2 		.string	"\302\263\342\362\356\360\356\352"
+ 333      EEF0 EEEA 
+ 333      00
+ 334               	.global	mon
+ 337               	mon:
+ 338 0133 CFEE EDE5 		.string	"\317\356\355\345\344\263\353\356\352"
+ 338      E4B3 EBEE 
+ 338      EA00 
+ 339               	.global	sun
+ 342               	sun:
+ 343 013d CDE5 E4B3 		.string	"\315\345\344\263\353\377"
+ 343      EBFF 00
+ 344               	.global	emp
+ 347               	emp:
+ 348 0144 00        		.zero	1
+ 349               		.text
+ 350               	.Letext0:
+ 351               		.file 1 "../drivers/text.c"
+ 352               		.file 2 "/usr/lib/avr/include/stdint.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 text.c
+     /tmp/ccJYcdoD.s:2      *ABS*:000000000000003e __SP_H__
+     /tmp/ccJYcdoD.s:3      *ABS*:000000000000003d __SP_L__
+     /tmp/ccJYcdoD.s:4      *ABS*:000000000000003f __SREG__
+     /tmp/ccJYcdoD.s:5      *ABS*:0000000000000000 __tmp_reg__
+     /tmp/ccJYcdoD.s:6      *ABS*:0000000000000001 __zero_reg__
+     /tmp/ccJYcdoD.s:14     .progmem.data:0000000000000000 months_width
+     /tmp/ccJYcdoD.s:30     .progmem.data:000000000000000c months_table
+     /tmp/ccJYcdoD.s:274    .progmem.data:00000000000000fc dow_shift
+     /tmp/ccJYcdoD.s:286    .progmem.data:0000000000000104 dow_len
+     /tmp/ccJYcdoD.s:299    .data:0000000000000000 dow_str
+     /tmp/ccJYcdoD.s:347    .progmem.data:0000000000000144 emp
+     /tmp/ccJYcdoD.s:342    .progmem.data:000000000000013d sun
+     /tmp/ccJYcdoD.s:337    .progmem.data:0000000000000133 mon
+     /tmp/ccJYcdoD.s:332    .progmem.data:000000000000012a tue
+     /tmp/ccJYcdoD.s:327    .progmem.data:0000000000000123 wed
+     /tmp/ccJYcdoD.s:322    .progmem.data:000000000000011c thu
+     /tmp/ccJYcdoD.s:317    .progmem.data:0000000000000113 fri
+     /tmp/ccJYcdoD.s:312    .progmem.data:000000000000010c sat
+
+UNDEFINED SYMBOLS
+__do_copy_data
