@@ -99,7 +99,7 @@ void display_init(void)
     display_clear_buf();
     // print_img();
     max7219_init();
-    max7219_update();
+    max7219_update_with_config();
 }
 
 void print_full_time(void)
@@ -486,7 +486,7 @@ void display_scroll_up(void)
         timer_stop(DISPLAY_TIMER_ID);
         // timer_register(DISPLAY_TIMER_ID, 50, display_wait_down);//////
     }
-    max7219_update();
+    max7219_update_with_config();
 }
 
 void display_scroll_down(void)
@@ -494,7 +494,7 @@ void display_scroll_down(void)
     if (display_row_shift < 16)
     {
         display_row_shift++;
-        max7219_update();
+        max7219_update_with_config();
     }
     if (display_row_shift == 16)
     {
@@ -508,14 +508,14 @@ void display_scroll_right(void)
     {
         timer_register(DISPLAY_TIMER_ID, 50, display_wait_right);
     }
-    max7219_update();
+    max7219_update_with_config();
 }
 
 void display_activate(void)
 {
     display_state = DISPLAY_STATE_ACTIVATING;
     // print_img();
-    max7219_update();
+    max7219_update_with_config();
     timer_register(DISPLAY_TIMER_ID, 1, display_scroll_up);
 }
 
@@ -538,7 +538,7 @@ void time_update_handler(void)
         print_bottom_date();
         if (get_second_bcd_l())
         {
-            max7219_update();
+            max7219_update_with_config();
         }
         else
         {
@@ -548,7 +548,7 @@ void time_update_handler(void)
     else if(display_state == DISPLAY_STATE_ACTIVATING)
     {
         // print_img();
-        max7219_update();
+        max7219_update_with_config();
     }
     else if(display_state == DISPLAY_STATE_WAITING)
     {

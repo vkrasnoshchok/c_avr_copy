@@ -19,7 +19,7 @@
 #define MOTION_TIMER_ID 1
 #define MOTION_TIMER_PERIOD 10 // 1 second
 #define MOTION_PIN (PIND & (1 << PD6))
-#define IDLE_COUNTER_INIT_VALUE 30
+#define IDLE_COUNTER_INIT_VALUE 40
 
 #define TEMPERATURE_TIMER_ID 2
 #define GPS_TIMEOUT_TIMER_ID 3
@@ -93,6 +93,7 @@ inline static void motion_handler(void)
         // {
         //     LED_CONTROL_PORT |= 1 << LED_CONTROL_PIN;
         // }
+        print_ext_temperature(temperature);
         display_activate();
         idle_counter = IDLE_COUNTER_INIT_VALUE;
     }
