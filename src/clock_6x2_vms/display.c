@@ -557,6 +557,6 @@ void time_update_handler(void)
         print_bottom_date();
         display_col_shift = 0;
         display_state = DISPLAY_STATE_ACTIVE;
-        timer_register(DISPLAY_TIMER_ID, 1, display_wait_down);
+        timer_register(DISPLAY_TIMER_ID, 10, display_wait_down);
     }
 }
