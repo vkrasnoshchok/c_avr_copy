@@ -19,7 +19,7 @@
 #define MOTION_TIMER_ID 1
 #define MOTION_TIMER_PERIOD 10 // 1 second
 #define MOTION_PIN (PIND & (1 << PD6))
-#define IDLE_COUNTER_INIT_VALUE 40
+#define IDLE_COUNTER_INIT_VALUE 45
 
 #define TEMPERATURE_TIMER_ID 2
 #define GPS_TIMEOUT_TIMER_ID 3
@@ -101,6 +101,7 @@ inline static void motion_handler(void)
 
 void motion_timer(void)
 {
+    // uart_send_hex(idle_counter);
     if (MOTION_PIN)
     {
         // if (ADC < ILLUMINANCE_ON_VALUE)
@@ -113,7 +114,7 @@ void motion_timer(void)
         // }
         if (idle_counter != 0xFF && idle_counter != 0)
         {
-            idle_counter++;
+            idle_counter = IDLE_COUNTER_INIT_VALUE;
         }
     }
     else if (idle_counter)
